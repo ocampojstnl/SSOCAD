@@ -1,0 +1,76 @@
+import { type NextRequest, NextResponse } from 'next/server'
+import { verifyPluginSecret } from '@/lib/guards'
+import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { loadPrivateKey } = require('../../../../../config/keys')
+
+export async function POST(request: NextRequest) {
+  if (!verifyPluginSecret(request)) {
+    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+  }
+
+  let body: { otp_token?: string; code?: string }
+  try { body = await request.json() } catch { body = {} }
+
+  const { otp_token, code } = body
+
+  if (!otp_token || !code) {
+    return NextResponse.json({ error: 'otp_token and code are required.' }, { status: 400 })
+  }
+
+  if (!/^\d{6}$/.test(String(code).trim())) {
+    return NextResponse.json({ error: 'Code must be exactly 6 digits.' }, { status: 400 })
+  }
+
+  const otpSecret = process.env.OTP_SECRET
+  const appUrl    = process.env.APP_URL
+
+  // Verify the OTP session token
+  let otpPayload: jwt.JwtPayload
+  try {
+    otpPayload = jwt.verify(otp_token, otpSecret!, {
+      algorithms: ['HS256'],
+      audience:   'otp-session',
+      issuer:     appUrl,
+    }) as jwt.JwtPayload
+  } catch {
+    return NextResponse.json(
+      { error: 'Invalid or expired session. Please request a new code.' },
+      { status: 403 },
+    )
+  }
+
+  // Timing-safe code comparison
+  const providedHash = crypto
+    .createHmac('sha256', otpPayload.salt as string)
+    .update(String(code).trim())
+    .digest('hex')
+
+  let codeMatches = false
+  try {
+    codeMatches = crypto.timingSafeEqual(
+      Buffer.from(providedHash),
+      Buffer.from(otpPayload.codeHash as string),
+    )
+  } catch { codeMatches = false }
+
+  if (!codeMatches) {
+    return NextResponse.json({ error: 'Incorrect code.' }, { status: 403 })
+  }
+
+  // Issue RS256 login JWT for WordPress
+  try {
+    const privateKey = loadPrivateKey()
+    const loginToken = jwt.sign(
+      { email: otpPayload.email, name: 'Admin', iss: appUrl, aud: 'wordpress-sso' },
+      privateKey,
+      { algorithm: 'RS256', expiresIn: '5m', jwtid: crypto.randomBytes(16).toString('hex') },
+    )
+    return NextResponse.json({ login_token: loginToken })
+  } catch (err) {
+    console.error('JWT signing error:', (err as Error).message)
+    return NextResponse.json({ error: 'Failed to issue login token.' }, { status: 500 })
+  }
+}
