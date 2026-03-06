@@ -11,6 +11,9 @@ const nextConfig = {
   // nodemailer and google-auth-library use Node.js built-ins —
   // keep them server-side only.
   serverExternalPackages: ['nodemailer', 'google-auth-library'],
+  outputFileTracingIncludes: {
+    '/**': ['./keys/**', './data/**', './config/**'],
+  },
 }
 
 module.exports = nextConfig

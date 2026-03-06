@@ -15,6 +15,9 @@ function loadPrivateKey() {
 }
 
 function loadPublicKey() {
+  if (process.env.RSA_PUBLIC_KEY) {
+    return process.env.RSA_PUBLIC_KEY.replace(/\\n/g, '\n');
+  }
   const keyPath = path.join(KEYS_DIR, 'public.pem');
   if (!fs.existsSync(keyPath)) {
     throw new Error('RSA public key not found. Run: npm run generate-keys');
