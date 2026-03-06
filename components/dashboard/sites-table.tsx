@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Loader2, LogIn, ExternalLink, Copy } from 'lucide-react'
+import { Loader2, LogIn, ExternalLink, Copy, Ban, CheckCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,15 +27,40 @@ interface Site {
   plugin_version: string
   registered_at: string
   last_seen: string
+  blocked?: boolean
 }
 
 function daysSince(iso: string) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
 }
 
-export function SitesTable({ sites }: { sites: Site[] }) {
+export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
+  const [sites, setSites] = useState(initialSites)
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [blockingId, setBlockingId] = useState<string | null>(null)
   const [pushUrl, setPushUrl] = useState<string | null>(null)
+
+  async function handleToggleBlock(site: Site) {
+    setBlockingId(site.site_id)
+    try {
+      const res = await fetch(`/api/admin/sites/${site.site_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blocked: !site.blocked }),
+      })
+      if (res.ok) {
+        setSites(prev => prev.map(s =>
+          s.site_id === site.site_id ? { ...s, blocked: !s.blocked } : s
+        ))
+        toast.success(site.blocked ? 'Site unblocked' : 'Site blocked')
+      } else {
+        const { error } = await res.json().catch(() => ({}))
+        toast.error(error ?? 'Failed to update site')
+      }
+    } finally {
+      setBlockingId(null)
+    }
+  }
 
   async function handlePushLogin(site_id: string) {
     setLoadingId(site_id)
@@ -63,6 +88,7 @@ export function SitesTable({ sites }: { sites: Site[] }) {
             <TableHead>Version</TableHead>
             <TableHead>Last Seen</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead className="w-[100px]">Block</TableHead>
             <TableHead className="w-[130px]">Push Login</TableHead>
           </TableRow>
         </TableHeader>
@@ -85,15 +111,35 @@ export function SitesTable({ sites }: { sites: Site[] }) {
                 <TableCell>
                   <Badge
                     variant={
-                      status === 'active'
+                      site.blocked
+                        ? 'destructive'
+                        : status === 'active'
                         ? 'success'
                         : status === 'idle'
                         ? 'warning'
                         : 'destructive'
                     }
                   >
-                    {status}
+                    {site.blocked ? 'blocked' : status}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={blockingId === site.site_id}
+                    onClick={() => handleToggleBlock(site)}
+                    className={`h-7 gap-1 text-xs border-zinc-700 ${site.blocked ? 'text-emerald-400' : 'text-red-400'}`}
+                  >
+                    {blockingId === site.site_id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : site.blocked ? (
+                      <CheckCircle className="h-3 w-3" />
+                    ) : (
+                      <Ban className="h-3 w-3" />
+                    )}
+                    {site.blocked ? 'Unblock' : 'Block'}
+                  </Button>
                 </TableCell>
                 <TableCell>
                   {site.owner_email ? (

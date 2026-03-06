@@ -65,4 +65,14 @@ function getSite(site_id) {
   return loadSites().find(s => s.site_id === site_id) || null;
 }
 
-module.exports = { loadSites, registerSite, updateSitePing, getSite };
+function setSiteBlocked(site_id, blocked) {
+  const sites = loadSites();
+  const site  = sites.find(s => s.site_id === site_id);
+  if (site) {
+    site.blocked = blocked;
+    saveSites(sites);
+  }
+  return site || null;
+}
+
+module.exports = { loadSites, registerSite, updateSitePing, getSite, setSiteBlocked };

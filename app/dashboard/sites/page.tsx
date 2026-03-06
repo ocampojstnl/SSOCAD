@@ -7,7 +7,7 @@ const { loadSites } = require('../../../config/sites')
 
 interface Site {
   site_id: string; domain: string; owner_email: string | null
-  plugin_version: string; registered_at: string; last_seen: string
+  plugin_version: string; registered_at: string; last_seen: string; blocked?: boolean
 }
 
 export default function SitesPage() {

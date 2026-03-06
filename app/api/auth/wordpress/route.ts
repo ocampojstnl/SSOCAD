@@ -5,6 +5,9 @@ import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
 import { buildWordPressRedirect } from '@/lib/wp-auth'
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { loadSites } = require('../../../../config/sites')
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const redirect_uri = searchParams.get('redirect_uri')
@@ -14,19 +17,20 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Missing redirect_uri parameter.', { status: 400 })
   }
 
-  const allowedOrigins = (process.env.ALLOWED_REDIRECT_ORIGINS ?? '')
-    .split(',').map(s => s.trim()).filter(Boolean)
-
-  if (allowedOrigins.length === 0) {
-    return new NextResponse('ALLOWED_REDIRECT_ORIGINS is not configured.', { status: 500 })
-  }
-
   let parsedUri: URL
   try { parsedUri = new URL(redirect_uri) }
   catch { return new NextResponse('Invalid redirect_uri.', { status: 400 }) }
 
-  if (!allowedOrigins.includes(parsedUri.origin)) {
-    return new NextResponse('redirect_uri origin is not allowed.', { status: 403 })
+  const sites: { domain: string; blocked?: boolean }[] = loadSites()
+  const matchingSite = sites.find(s => {
+    try { return new URL(s.domain).origin === parsedUri.origin } catch { return false }
+  })
+
+  if (!matchingSite) {
+    return new NextResponse('This site is not registered. Install and activate the plugin first.', { status: 403 })
+  }
+  if (matchingSite.blocked) {
+    return new NextResponse('This site has been blocked by the administrator.', { status: 403 })
   }
 
   const session = await getIronSession<SessionData>(await cookies(), sessionOptions)
