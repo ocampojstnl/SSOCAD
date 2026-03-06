@@ -33,12 +33,22 @@ export default function PluginPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Download the plugin zip from the repository, upload it via{' '}
-            <span className="font-mono text-xs text-foreground">Plugins → Add New → Upload Plugin</span>,
-            then activate it. The plugin settings page will appear under{' '}
-            <span className="font-mono text-xs text-foreground">Settings → Cad Dev SSO</span>.
-          </p>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Upload via{' '}
+              <span className="font-mono text-xs text-foreground">Plugins → Add New → Upload Plugin</span>,
+              then activate it. The plugin settings page will appear under{' '}
+              <span className="font-mono text-xs text-foreground">Settings → Cad Dev SSO</span>.
+            </p>
+            <a
+              href="/downloadables/plugin/cad-dev.zip"
+              download
+              className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-foreground ring-1 ring-zinc-700 transition-colors hover:bg-zinc-700"
+            >
+              <Download className="h-4 w-4" />
+              Download cad-dev.zip
+            </a>
+          </div>
         </CardContent>
       </Card>
 
