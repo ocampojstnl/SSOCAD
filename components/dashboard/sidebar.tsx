@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Lock, Mail, Shield, Globe, Settings, LogOut, LayoutDashboard } from 'lucide-react'
+import { Lock, Mail, Shield, Globe, Settings, LogOut, LayoutDashboard, Puzzle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useTransition } from 'react'
@@ -11,6 +11,7 @@ const nav = [
   { href: '/dashboard/emails',   label: 'Emails',    icon: Mail },
   { href: '/dashboard/ips',      label: 'IP Lists',  icon: Shield },
   { href: '/dashboard/sites',    label: 'Sites',     icon: Globe },
+  { href: '/dashboard/plugin',   label: 'Plugin & Keys', icon: Puzzle },
   { href: '/dashboard/settings', label: 'Settings',  icon: Settings },
 ]
 
