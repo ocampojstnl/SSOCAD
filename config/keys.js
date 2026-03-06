@@ -4,6 +4,9 @@ const path = require('path');
 const KEYS_DIR = path.join(__dirname, '..', 'keys');
 
 function loadPrivateKey() {
+  if (process.env.RSA_PRIVATE_KEY) {
+    return process.env.RSA_PRIVATE_KEY.replace(/\\n/g, '\n');
+  }
   const keyPath = path.join(KEYS_DIR, 'private.pem');
   if (!fs.existsSync(keyPath)) {
     throw new Error('RSA private key not found. Run: npm run generate-keys');
