@@ -6,6 +6,7 @@
 
 import fs from 'fs'
 import path from 'path'
+import { kv } from '@vercel/kv'
 
 const USE_KV = !!process.env.KV_REST_API_URL
 const DATA_DIR = path.join(process.cwd(), 'data')
@@ -26,13 +27,20 @@ function fsWrite(file: string, data: unknown): void {
 }
 
 async function kvGet<T>(key: string, fallback: T): Promise<T> {
-  const { kv } = await import('@vercel/kv')
-  return (await kv.get<T>(key)) ?? fallback
+  try {
+    return (await kv.get<T>(key)) ?? fallback
+  } catch (e) {
+    console.error(`[storage] kvGet failed (${key}):`, e)
+    return fallback
+  }
 }
 
 async function kvSet(key: string, value: unknown): Promise<void> {
-  const { kv } = await import('@vercel/kv')
-  await kv.set(key, value)
+  try {
+    await kv.set(key, value)
+  } catch (e) {
+    console.error(`[storage] kvSet failed (${key}):`, e)
+  }
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
