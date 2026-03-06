@@ -1,12 +1,10 @@
 import { Mail } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmailList } from '@/components/dashboard/email-list'
+import { getEmails } from '@/lib/storage'
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadEmails } = require('../../../config/allowedEmails')
-
-export default function EmailsPage() {
-  const emails: string[] = loadEmails()
+export default async function EmailsPage() {
+  const emails = await getEmails()
 
   return (
     <div className="space-y-6">

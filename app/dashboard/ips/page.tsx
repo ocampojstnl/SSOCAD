@@ -1,13 +1,10 @@
 import { Shield } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { IpList } from '@/components/dashboard/ip-list'
+import { getWhitelist, getBlacklist } from '@/lib/storage'
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadWhitelist, loadBlacklist } = require('../../../config/ipLists')
-
-export default function IpsPage() {
-  const whitelist: string[] = loadWhitelist()
-  const blacklist: string[] = loadBlacklist()
+export default async function IpsPage() {
+  const [whitelist, blacklist] = await Promise.all([getWhitelist(), getBlacklist()])
 
   return (
     <div className="space-y-6">

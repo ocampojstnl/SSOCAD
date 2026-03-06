@@ -1,17 +1,15 @@
 import { Globe } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SitesTable } from '@/components/dashboard/sites-table'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadSites } = require('../../../config/sites')
+import { getSites } from '@/lib/storage'
 
 interface Site {
   site_id: string; domain: string; owner_email: string | null
   plugin_version: string; registered_at: string; last_seen: string; blocked?: boolean
 }
 
-export default function SitesPage() {
-  const sites: Site[] = loadSites()
+export default async function SitesPage() {
+  const sites: Site[] = await getSites()
 
   return (
     <div className="space-y-6">

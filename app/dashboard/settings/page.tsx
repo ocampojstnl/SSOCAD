@@ -1,8 +1,7 @@
 import { Settings } from 'lucide-react'
 import { SettingsForm } from '@/components/dashboard/settings-form'
+import { getNotificationEmail } from '@/lib/storage'
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadNotificationEmail } = require('../../../config/notificationEmail')
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { loadPublicKey } = require('../../../config/keys')
 
@@ -10,8 +9,8 @@ function safeLoadPublicKey(): string {
   try { return loadPublicKey() } catch { return '' }
 }
 
-export default function SettingsPage() {
-  const notificationEmail: string = loadNotificationEmail()
+export default async function SettingsPage() {
+  const notificationEmail: string = await getNotificationEmail()
   const publicKey: string = safeLoadPublicKey()
 
   return (

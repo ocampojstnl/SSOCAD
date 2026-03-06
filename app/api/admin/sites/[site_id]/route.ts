@@ -3,9 +3,7 @@ import { getIronSession } from 'iron-session'
 import { cookies } from 'next/headers'
 import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { setSiteBlocked } = require('../../../../../config/sites')
+import { setSiteBlocked } from '@/lib/storage'
 
 export async function PATCH(
   request: NextRequest,
@@ -24,7 +22,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'blocked (boolean) required.' }, { status: 400 })
   }
 
-  const site = setSiteBlocked(site_id, body.blocked)
+  const site = await setSiteBlocked(site_id, body.blocked)
   if (!site) {
     return NextResponse.json({ error: 'Site not found.' }, { status: 404 })
   }

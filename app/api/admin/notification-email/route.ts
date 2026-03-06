@@ -4,9 +4,7 @@ import { cookies } from 'next/headers'
 import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
 import { validateEmail } from '@/lib/guards'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadNotificationEmail, saveNotificationEmail } = require('../../../../config/notificationEmail')
+import { getNotificationEmail, saveNotificationEmail } from '@/lib/storage'
 
 async function requireAdmin() {
   const session = await getIronSession<SessionData>(await cookies(), sessionOptions)
@@ -16,7 +14,7 @@ async function requireAdmin() {
 export async function GET() {
   const deny = await requireAdmin()
   if (deny) return deny
-  return NextResponse.json({ email: loadNotificationEmail() })
+  return NextResponse.json({ email: await getNotificationEmail() })
 }
 
 export async function POST(request: NextRequest) {
@@ -30,6 +28,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Valid email required.' }, { status: 400 })
   }
 
-  saveNotificationEmail(body.email)
+  await saveNotificationEmail(body.email!)
   return NextResponse.json({ success: true, email: body.email })
 }

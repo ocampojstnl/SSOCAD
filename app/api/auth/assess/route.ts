@@ -1,10 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyPluginSecret } from '@/lib/guards'
+import { isWhitelisted, isBlacklisted, isEmailAllowed } from '@/lib/storage'
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { isWhitelisted, isBlacklisted } = require('../../../../config/ipLists')
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { isEmailAllowed } = require('../../../../config/allowedEmails')
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { loadPrivateKey } = require('../../../../config/keys')
 
@@ -28,7 +25,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Step 1: Hard block — IP on blacklist
-  if (isBlacklisted(ip)) {
+  if (await isBlacklisted(ip)) {
     return NextResponse.json({ decision: 'BLOCKED' })
   }
 
@@ -47,12 +44,12 @@ export async function POST(request: NextRequest) {
   }
 
   // Step 4: Revocation check
-  if (!isEmailAllowed(user_email)) {
+  if (!await isEmailAllowed(user_email)) {
     return NextResponse.json({ decision: 'BLOCKED' })
   }
 
   // Step 5: TRUSTED if whitelisted IP or exact DB match
-  const trusted = isWhitelisted(ip) || !!db_user_email
+  const trusted = (await isWhitelisted(ip)) || !!db_user_email
   if (!trusted) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }

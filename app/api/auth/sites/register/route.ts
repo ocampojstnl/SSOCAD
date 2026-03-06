@@ -1,8 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyPluginSecret } from '@/lib/guards'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { registerSite } = require('../../../../../config/sites')
+import { registerSite } from '@/lib/storage'
 
 export async function POST(request: NextRequest) {
   if (!verifyPluginSecret(request)) {
@@ -27,7 +25,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid owner_email.' }, { status: 400 })
   }
 
-  registerSite({
+  await registerSite({
     site_id,
     domain,
     owner_email: owner_email || null,

@@ -4,9 +4,7 @@ import { cookies } from 'next/headers'
 import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
 import { validateIp } from '@/lib/guards'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { removeFromWhitelist, loadWhitelist } = require('../../../../../../config/ipLists')
+import { removeFromWhitelist, getWhitelist } from '@/lib/storage'
 
 export async function DELETE(
   _request: NextRequest,
@@ -24,6 +22,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'Invalid IP.' }, { status: 400 })
   }
 
-  removeFromWhitelist(decoded)
-  return NextResponse.json({ success: true, ips: loadWhitelist() })
+  await removeFromWhitelist(decoded)
+  return NextResponse.json({ success: true, ips: await getWhitelist() })
 }

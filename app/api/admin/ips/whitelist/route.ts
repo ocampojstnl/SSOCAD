@@ -4,9 +4,7 @@ import { cookies } from 'next/headers'
 import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
 import { validateIp } from '@/lib/guards'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadWhitelist, addToWhitelist } = require('../../../../../config/ipLists')
+import { getWhitelist, addToWhitelist } from '@/lib/storage'
 
 async function requireAdmin() {
   const session = await getIronSession<SessionData>(await cookies(), sessionOptions)
@@ -16,7 +14,7 @@ async function requireAdmin() {
 export async function GET() {
   const deny = await requireAdmin()
   if (deny) return deny
-  return NextResponse.json({ ips: loadWhitelist() })
+  return NextResponse.json({ ips: await getWhitelist() })
 }
 
 export async function POST(request: NextRequest) {
@@ -30,6 +28,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Valid IP address required.' }, { status: 400 })
   }
 
-  addToWhitelist(body.ip)
-  return NextResponse.json({ success: true, ips: loadWhitelist() })
+  await addToWhitelist(body.ip as string)
+  return NextResponse.json({ success: true, ips: await getWhitelist() })
 }

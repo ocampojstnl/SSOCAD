@@ -1,8 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyPluginSecret } from '@/lib/guards'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { updateSitePing, registerSite } = require('../../../../../config/sites')
+import { updateSitePing, registerSite } from '@/lib/storage'
 
 export async function POST(request: NextRequest) {
   if (!verifyPluginSecret(request)) {
@@ -18,11 +16,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'site_id required.' }, { status: 400 })
   }
 
-  const site = updateSitePing(site_id, domain ?? null)
+  const site = await updateSitePing(site_id, domain ?? null)
 
   if (!site && domain) {
     // Not registered yet — register it now
-    registerSite({ site_id, domain, plugin_version: 'unknown' })
+    await registerSite({ site_id, domain, plugin_version: 'unknown' })
   }
 
   return NextResponse.json({ success: true })

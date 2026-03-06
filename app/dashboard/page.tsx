@@ -2,13 +2,7 @@ import { Mail, Shield, Globe, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadEmails }         = require('../../config/allowedEmails')
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadWhitelist, loadBlacklist } = require('../../config/ipLists')
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadSites }          = require('../../config/sites')
+import { getEmails, getWhitelist, getBlacklist, getSites } from '@/lib/storage'
 
 interface Site {
   site_id: string; domain: string; owner_email: string | null
@@ -19,11 +13,10 @@ function daysSince(iso: string) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
 }
 
-export default function DashboardPage() {
-  const emails:    string[] = loadEmails()
-  const whitelist: string[] = loadWhitelist()
-  const blacklist: string[] = loadBlacklist()
-  const sites:     Site[]   = loadSites()
+export default async function DashboardPage() {
+  const [emails, whitelist, blacklist, sites] = await Promise.all([
+    getEmails(), getWhitelist(), getBlacklist(), getSites(),
+  ])
 
   const recentSites = [...sites]
     .sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime())

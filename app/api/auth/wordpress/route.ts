@@ -4,9 +4,7 @@ import { cookies } from 'next/headers'
 import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
 import { buildWordPressRedirect } from '@/lib/wp-auth'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadSites } = require('../../../../config/sites')
+import { getSites } from '@/lib/storage'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -21,7 +19,7 @@ export async function GET(request: NextRequest) {
   try { parsedUri = new URL(redirect_uri) }
   catch { return new NextResponse('Invalid redirect_uri.', { status: 400 }) }
 
-  const sites: { domain: string; blocked?: boolean }[] = loadSites()
+  const sites = await getSites()
   const matchingSite = sites.find(s => {
     try { return new URL(s.domain).origin === parsedUri.origin } catch { return false }
   })

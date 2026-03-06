@@ -4,9 +4,7 @@ import { cookies } from 'next/headers'
 import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
 import { validateEmail } from '@/lib/guards'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { removeEmail, loadEmails } = require('../../../../../config/allowedEmails')
+import { removeEmail, getEmails } from '@/lib/storage'
 
 export async function DELETE(
   _request: NextRequest,
@@ -24,6 +22,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'Invalid email format.' }, { status: 400 })
   }
 
-  removeEmail(decoded)
-  return NextResponse.json({ success: true, emails: loadEmails() })
+  await removeEmail(decoded)
+  return NextResponse.json({ success: true, emails: await getEmails() })
 }
