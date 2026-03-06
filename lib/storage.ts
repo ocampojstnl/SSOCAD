@@ -9,7 +9,10 @@ import path from 'path'
 import { kv } from '@vercel/kv'
 
 const USE_KV = !!process.env.KV_REST_API_URL
-const DATA_DIR = path.join(process.cwd(), 'data')
+// On Vercel, process.cwd() is not writable — use /tmp instead
+const DATA_DIR = process.env.VERCEL
+  ? '/tmp/cad-dev-data'
+  : path.join(process.cwd(), 'data')
 
 function fsRead<T>(file: string, fallback: T): T {
   try {
