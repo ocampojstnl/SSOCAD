@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { IpList } from '@/components/dashboard/ip-list'
 import { getWhitelist, getBlacklist } from '@/lib/storage'
 
+export const dynamic = 'force-dynamic'
+
 export default async function IpsPage() {
   const [whitelist, blacklist] = await Promise.all([getWhitelist(), getBlacklist()])
 

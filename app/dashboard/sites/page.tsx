@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { SitesTable } from '@/components/dashboard/sites-table'
 import { getSites } from '@/lib/storage'
 
+export const dynamic = 'force-dynamic'
+
 interface Site {
   site_id: string; domain: string; owner_email: string | null
   plugin_version: string; registered_at: string; last_seen: string; blocked?: boolean

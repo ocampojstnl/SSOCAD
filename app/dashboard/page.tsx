@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getEmails, getWhitelist, getBlacklist, getSites } from '@/lib/storage'
 
+export const dynamic = 'force-dynamic'
+
 interface Site {
   site_id: string; domain: string; owner_email: string | null
   plugin_version: string; registered_at: string; last_seen: string

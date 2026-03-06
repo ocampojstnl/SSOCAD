@@ -2,6 +2,8 @@ import { Settings } from 'lucide-react'
 import { SettingsForm } from '@/components/dashboard/settings-form'
 import { getNotificationEmail } from '@/lib/storage'
 
+export const dynamic = 'force-dynamic'
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { loadPublicKey } = require('../../../config/keys')
 

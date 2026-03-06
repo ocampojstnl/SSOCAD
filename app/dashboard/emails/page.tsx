@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { EmailList } from '@/components/dashboard/email-list'
 import { getEmails } from '@/lib/storage'
 
+export const dynamic = 'force-dynamic'
+
 export default async function EmailsPage() {
   const emails = await getEmails()
 
