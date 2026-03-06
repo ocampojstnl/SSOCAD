@@ -1,15 +1,23 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { getIronSession } from 'iron-session'
-import { sessionOptions, type SessionData } from '@/lib/session'
+import { unsealData } from 'iron-session'
+import { type SessionData } from '@/lib/session'
 
 export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith('/dashboard')) {
-    const response = NextResponse.next()
-    const session = await getIronSession<SessionData>(request, response, sessionOptions)
-    if (!session.isAdmin) {
+    const cookieValue = request.cookies.get('cad_dev_sid')?.value
+    if (!cookieValue) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
-    return response
+    try {
+      const session = await unsealData<SessionData>(cookieValue, {
+        password: process.env.SESSION_SECRET as string,
+      })
+      if (!session.isAdmin) {
+        return NextResponse.redirect(new URL('/login', request.url))
+      }
+    } catch {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
   }
   return NextResponse.next()
 }
