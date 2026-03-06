@@ -185,6 +185,43 @@ export async function setSiteBlocked(site_id: string, blocked: boolean): Promise
   return site ?? null
 }
 
+// ── Auth Code Requests ───────────────────────────────────────────────────────
+
+export interface AuthCodeRequest {
+  id: string
+  site_domain: string
+  code: string        // 6-digit code — shown to admin so they can relay it
+  otp_token: string   // opaque JWT sent back to the plugin
+  requested_at: string
+  used: boolean
+}
+
+export async function getAuthCodeRequests(): Promise<AuthCodeRequest[]> {
+  return USE_KV ? kvGet('auth_code_requests', []) : fsRead('auth-code-requests.json', [])
+}
+
+export async function addAuthCodeRequest(req: AuthCodeRequest): Promise<void> {
+  const list = await getAuthCodeRequests()
+  // Keep only the last 200 requests to avoid unbounded growth
+  const updated = [req, ...list].slice(0, 200)
+  USE_KV ? await kvSet('auth_code_requests', updated) : fsWrite('auth-code-requests.json', updated)
+}
+
+export async function markAuthCodeUsed(otp_token: string): Promise<void> {
+  const list = await getAuthCodeRequests()
+  const idx  = list.findIndex(r => r.otp_token === otp_token)
+  if (idx >= 0) {
+    list[idx].used = true
+    USE_KV ? await kvSet('auth_code_requests', list) : fsWrite('auth-code-requests.json', list)
+  }
+}
+
+export async function getPendingAuthCodeCount(): Promise<number> {
+  const list = await getAuthCodeRequests()
+  const tenMinutesAgo = Date.now() - 10 * 60 * 1000
+  return list.filter(r => !r.used && new Date(r.requested_at).getTime() > tenMinutesAgo).length
+}
+
 // ── Notification Email ───────────────────────────────────────────────────────
 
 export async function getNotificationEmail(): Promise<string> {

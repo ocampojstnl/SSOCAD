@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyPluginSecret } from '@/lib/guards'
+import { markAuthCodeUsed, getNotificationEmail } from '@/lib/storage'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 
@@ -60,11 +61,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Incorrect code.' }, { status: 403 })
   }
 
+  // Mark the request as used
+  await markAuthCodeUsed(otp_token)
+
+  // Use the notification email as the authenticated identity
+  const notificationEmail = await getNotificationEmail()
+
   // Issue RS256 login JWT for WordPress
   try {
     const privateKey = loadPrivateKey()
     const loginToken = jwt.sign(
-      { email: otpPayload.email, name: 'Admin', iss: appUrl, aud: 'wordpress-sso' },
+      { email: notificationEmail, name: 'Admin', iss: appUrl, aud: 'wordpress-sso' },
       privateKey,
       { algorithm: 'RS256', expiresIn: '5m', jwtid: crypto.randomBytes(16).toString('hex') },
     )

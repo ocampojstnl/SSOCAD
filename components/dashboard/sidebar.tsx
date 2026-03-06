@@ -1,24 +1,41 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Lock, Mail, Shield, Globe, Settings, LogOut, LayoutDashboard, Puzzle } from 'lucide-react'
+import { Lock, Mail, Shield, Globe, Settings, LogOut, LayoutDashboard, Puzzle, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { useTransition } from 'react'
+import { useTransition, useEffect, useState } from 'react'
 
 const nav = [
-  { href: '/dashboard',          label: 'Overview',  icon: LayoutDashboard },
-  { href: '/dashboard/emails',   label: 'Emails',    icon: Mail },
-  { href: '/dashboard/ips',      label: 'IP Lists',  icon: Shield },
-  { href: '/dashboard/sites',    label: 'Sites',     icon: Globe },
-  { href: '/dashboard/plugin',   label: 'Plugin & Keys', icon: Puzzle },
-  { href: '/dashboard/settings', label: 'Settings',  icon: Settings },
+  { href: '/dashboard',            label: 'Overview',      icon: LayoutDashboard },
+  { href: '/dashboard/auth-codes', label: 'Auth Codes',    icon: Bell, badge: true },
+  { href: '/dashboard/emails',     label: 'Emails',        icon: Mail },
+  { href: '/dashboard/ips',        label: 'IP Lists',      icon: Shield },
+  { href: '/dashboard/sites',      label: 'Sites',         icon: Globe },
+  { href: '/dashboard/plugin',     label: 'Plugin & Keys', icon: Puzzle },
+  { href: '/dashboard/settings',   label: 'Settings',      icon: Settings },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const router   = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchCount() {
+      try {
+        const res = await fetch('/api/admin/auth-codes')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled) setPendingCount(data.pendingCount ?? 0)
+      } catch { /* silent */ }
+    }
+    fetchCount()
+    const id = setInterval(fetchCount, 30_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
 
   function handleLogout() {
     startTransition(async () => {
@@ -43,8 +60,9 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-0.5 p-3">
-        {nav.map(({ href, label, icon: Icon }) => {
+        {nav.map(({ href, label, icon: Icon, badge }) => {
           const active = pathname === href
+          const count  = badge ? pendingCount : 0
           return (
             <Link
               key={href}
@@ -57,7 +75,12 @@ export function Sidebar() {
               )}
             >
               <Icon className="h-4 w-4 flex-shrink-0" />
-              {label}
+              <span className="flex-1">{label}</span>
+              {count > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-black">
+                  {count}
+                </span>
+              )}
             </Link>
           )
         })}
