@@ -112,6 +112,8 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
   const [newAccessEmail, setNewAccessEmail] = useState('')
   const [addingEmail, setAddingEmail] = useState(false)
   const [removingEmail, setRemovingEmail] = useState<string | null>(null)
+  const [globalEmails, setGlobalEmails] = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
   // Register new site dialog
   const [registerOpen, setRegisterOpen] = useState(false)
@@ -355,12 +357,20 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
     setAccessSite(site)
     setAccessEmails([])
     setNewAccessEmail('')
+    setShowSuggestions(false)
     setAccessLoading(true)
     try {
-      const res = await fetch(`/api/admin/sites/${site.site_id}/emails`)
-      if (res.ok) {
-        const { emails } = await res.json()
+      const [siteRes, globalRes] = await Promise.all([
+        fetch(`/api/admin/sites/${site.site_id}/emails`),
+        fetch('/api/admin/emails'),
+      ])
+      if (siteRes.ok) {
+        const { emails } = await siteRes.json()
         setAccessEmails(emails)
+      }
+      if (globalRes.ok) {
+        const { emails } = await globalRes.json()
+        setGlobalEmails(emails)
       }
     } finally {
       setAccessLoading(false)
@@ -903,15 +913,47 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
               Add emails here to grant access to <span className="text-zinc-200">this site only</span>.
             </p>
 
-            {/* Add email */}
-            <div className="flex gap-2">
-              <Input
-                placeholder="email@example.com"
-                value={newAccessEmail}
-                onChange={e => setNewAccessEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !addingEmail && handleAddAccessEmail()}
-                className="bg-zinc-800 border-zinc-700 text-sm flex-1"
-              />
+            {/* Add email with autocomplete */}
+            <div className="relative flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  placeholder="Search or type an email…"
+                  value={newAccessEmail}
+                  onChange={e => { setNewAccessEmail(e.target.value); setShowSuggestions(true) }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); handleAddAccessEmail() }
+                    if (e.key === 'Escape') setShowSuggestions(false)
+                  }}
+                  className="bg-zinc-800 border-zinc-700 text-sm w-full"
+                  autoComplete="off"
+                />
+                {/* Dropdown suggestions */}
+                {showSuggestions && (() => {
+                  const q = newAccessEmail.toLowerCase()
+                  const suggestions = globalEmails.filter(e =>
+                    e.includes(q) && !accessEmails.includes(e)
+                  )
+                  if (suggestions.length === 0) return null
+                  return (
+                    <ul className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 shadow-lg">
+                      {suggestions.map(email => (
+                        <li
+                          key={email}
+                          onMouseDown={() => {
+                            setNewAccessEmail(email)
+                            setShowSuggestions(false)
+                          }}
+                          className="cursor-pointer px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 font-mono"
+                        >
+                          {email}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                })()}
+              </div>
               <Button
                 size="sm"
                 onClick={handleAddAccessEmail}
