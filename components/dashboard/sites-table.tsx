@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import {
   Loader2, LogIn, ExternalLink, Copy, Ban, CheckCircle, ShieldOff,
-  Users, LayoutList, LayoutGrid, RefreshCw, Clock, LogOut,
+  Users, LayoutList, LayoutGrid, RefreshCw, Clock, LogOut, PowerOff,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -96,6 +96,7 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
   const [sessions, setSessions] = useState<LoginSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [activeCounts, setActiveCounts] = useState<Record<string, number>>({})
+  const [forcingOut, setForcingOut] = useState<string | null>(null) // session id being forced out
 
   // Restore view preference
   useEffect(() => {
@@ -181,6 +182,36 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
       }
     } finally {
       setSessionsLoading(false)
+    }
+  }
+
+  async function handleForceLogout(session: LoginSession) {
+    if (!sessionSite) return
+    setForcingOut(session.id)
+    try {
+      const res = await fetch(`/api/admin/sites/${sessionSite.site_id}/force-logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: session.email }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        // Update session in local state immediately
+        setSessions(prev => prev.map(s =>
+          s.id === session.id
+            ? { ...s, status: 'signed_out', logout_at: new Date().toISOString() }
+            : s
+        ))
+        setActiveCounts(prev => ({
+          ...prev,
+          [sessionSite.site_id]: Math.max(0, (prev[sessionSite.site_id] ?? 1) - 1),
+        }))
+        toast.success(`${session.email} has been signed out${data.wp_notified ? '' : ' (plugin unreachable — session invalidated in web app)'}`)
+      } else {
+        toast.error(data.error ?? 'Failed to force logout')
+      }
+    } finally {
+      setForcingOut(null)
     }
   }
 
@@ -456,6 +487,7 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
                     <th className="px-4 py-2.5 text-left font-medium text-zinc-400">Logged In</th>
                     <th className="px-4 py-2.5 text-left font-medium text-zinc-400">Status</th>
                     <th className="px-4 py-2.5 text-left font-medium text-zinc-400">Logged Out</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-zinc-400" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/60">
@@ -483,6 +515,23 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
                           <span title={s.logout_at}>{relativeTime(s.logout_at)}</span>
                         ) : (
                           '—'
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {s.status === 'active' && (
+                          <button
+                            disabled={forcingOut === s.id}
+                            onClick={() => handleForceLogout(s)}
+                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-red-400 border border-red-400/30 hover:bg-red-400/10 disabled:opacity-50 transition-colors"
+                            title="Force sign out this user"
+                          >
+                            {forcingOut === s.id ? (
+                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                            ) : (
+                              <PowerOff className="h-2.5 w-2.5" />
+                            )}
+                            Force logout
+                          </button>
                         )}
                       </td>
                     </tr>
