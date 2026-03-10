@@ -213,14 +213,17 @@ export async function removeSiteEmail(site_id: string, email: string): Promise<S
 
 /**
  * Check if an email is allowed to access a specific site.
- * Global list = super-admins (always allowed everywhere).
- * Per-site list = additional emails scoped to just that site.
+ * If the site has a per-site allowlist configured, it is the exclusive whitelist —
+ * only those emails can access that site (super-admins included must be listed).
+ * If no per-site list is configured, falls back to the global allowed-emails list.
  */
 export async function isEmailAllowedForSite(email: string, site_id: string): Promise<boolean> {
   const lower = email.toLowerCase().trim()
-  if (await isEmailAllowed(lower)) return true
   const site = await getSite(site_id)
-  return (site?.allowed_emails ?? []).map(e => e.toLowerCase()).includes(lower)
+  if (site?.allowed_emails && site.allowed_emails.length > 0) {
+    return site.allowed_emails.map(e => e.toLowerCase()).includes(lower)
+  }
+  return isEmailAllowed(lower)
 }
 
 export async function setSiteBlocked(site_id: string, blocked: boolean): Promise<SiteRecord | null> {

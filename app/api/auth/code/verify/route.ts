@@ -1,14 +1,16 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { verifyPluginSecret } from '@/lib/guards'
-import { markAuthCodeUsed, getNotificationEmail } from '@/lib/storage'
+import { authenticatePlugin } from '@/lib/guards'
+import { markAuthCodeUsed, getNotificationEmail, isEmailAllowedForSite } from '@/lib/storage'
 import { loadPrivateKey } from '@/lib/keys'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 
 export async function POST(request: NextRequest) {
-  if (!verifyPluginSecret(request)) {
+  const auth = await authenticatePlugin(request)
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
+  const site_id = 'site' in auth ? auth.site.site_id : null
 
   let body: { otp_token?: string; code?: string }
   try { body = await request.json() } catch { body = {} }
@@ -64,6 +66,14 @@ export async function POST(request: NextRequest) {
 
   // Use the notification email as the authenticated identity
   const notificationEmail = await getNotificationEmail()
+
+  // Enforce per-site email access control
+  if (site_id) {
+    const allowed = await isEmailAllowedForSite(notificationEmail, site_id)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Email not authorised for this site.' }, { status: 403 })
+    }
+  }
 
   // Issue RS256 login JWT for WordPress
   try {

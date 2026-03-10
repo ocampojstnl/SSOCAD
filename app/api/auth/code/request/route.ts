@@ -1,11 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { verifyPluginSecret } from '@/lib/guards'
+import { authenticatePlugin } from '@/lib/guards'
 import { addAuthCodeRequest } from '@/lib/storage'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 
 export async function POST(request: NextRequest) {
-  if (!verifyPluginSecret(request)) {
+  const auth = await authenticatePlugin(request)
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
 
