@@ -17,9 +17,8 @@ function loadPrivateKey() {
   // This tolerates any newline variant, double-escaping, or missing line breaks
   // that can result from pasting into Vercel's env var UI.
   const base64 = raw
-    .replace(/\\n/g, '')           // remove escaped \n sequences
     .replace(/-----[^-]+-----/g, '') // remove PEM headers/footers
-    .replace(/\s+/g, '')            // remove all whitespace
+    .replace(/[^A-Za-z0-9+/=]/g, '') // keep only valid base64 chars, strip everything else
   if (!base64) throw new Error('RSA_PRIVATE_KEY is empty after stripping PEM headers')
   const lines = (base64.match(/.{1,64}/g) ?? []).join('\n')
   const pem = `-----BEGIN PRIVATE KEY-----\n${lines}\n-----END PRIVATE KEY-----\n`
