@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authenticatePlugin } from '@/lib/guards'
-import { isWhitelisted, isBlacklisted, isEmailAllowed, isEmailAllowedForSite, getTrustedSignal } from '@/lib/storage'
+import { isWhitelisted, isBlacklisted, isEmailAllowed, isEmailAllowedForSite, getTrustedSignal, getSites } from '@/lib/storage'
 import { loadPrivateKey } from '@/lib/keys'
 
 export async function POST(request: NextRequest) {
@@ -8,14 +8,25 @@ export async function POST(request: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
 
   // When a per-site project key is used we know which site is calling
-  const site_id = 'site' in auth ? auth.site.site_id : null
+  let site_id = 'site' in auth ? auth.site.site_id : null
 
   let body: {
     ip?: string
     fingerprint_hash?: string
     cookie_user_email?: string | null
+    site_domain?: string
   }
   try { body = await request.json() } catch { body = {} }
+
+  // In legacy mode (shared secret), resolve site_id from the reported domain
+  if (!site_id && body.site_domain) {
+    try {
+      const origin = new URL(body.site_domain).origin
+      const sites  = await getSites()
+      const match  = sites.find(s => { try { return new URL(s.domain).origin === origin } catch { return false } })
+      if (match) site_id = match.site_id
+    } catch { /* ignore bad domain */ }
+  }
 
   const { ip, fingerprint_hash, cookie_user_email } = body
 
