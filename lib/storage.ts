@@ -143,12 +143,23 @@ async function saveSites(sites: SiteRecord[]): Promise<void> {
   USE_KV ? await kvSet('sites', sites) : fsWrite('sites.json', sites)
 }
 
+function domainOrigin(domain: string): string {
+  try { return new URL(domain).origin } catch { return domain.toLowerCase().trim() }
+}
+
 export async function registerSite(data: {
   site_id: string; domain: string; owner_email?: string | null; plugin_version: string
 }): Promise<void> {
   const sites = await getSites()
   const now   = new Date().toISOString()
-  const idx   = sites.findIndex(s => s.site_id === data.site_id)
+  const incomingOrigin = domainOrigin(data.domain)
+
+  // Prefer matching by site_id first, then fall back to domain origin.
+  // This prevents duplicate records when a site was pre-created by the admin
+  // (with a different site_id) before the plugin registered.
+  let idx = sites.findIndex(s => s.site_id === data.site_id)
+  if (idx < 0) idx = sites.findIndex(s => domainOrigin(s.domain) === incomingOrigin)
+
   if (idx >= 0) {
     sites[idx] = {
       ...sites[idx],
@@ -252,14 +263,23 @@ export async function getSiteByProjectKey(key: string): Promise<SiteRecord | nul
   return (await getSites()).find(s => s.project_key === key) ?? null
 }
 
-/** Admin creates a site manually — generates a project key immediately. */
+/** Admin creates a site manually — generates a project key immediately.
+ *  If a site with the same domain origin already exists, returns it as-is
+ *  (no duplicate records). */
 export async function createSiteByAdmin(domain: string): Promise<SiteRecord> {
   const sites = await getSites()
+  const normalised = domain.trim().replace(/\/+$/, '')
+  const origin = domainOrigin(normalised)
+
+  // Don't create a duplicate — return the existing record if the domain matches.
+  const existing = sites.find(s => domainOrigin(s.domain) === origin)
+  if (existing) return existing
+
   const now = new Date().toISOString()
   const site_id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
   const site: SiteRecord = {
     site_id,
-    domain: domain.trim().replace(/\/+$/, ''),
+    domain: normalised,
     owner_email: null,
     plugin_version: 'unknown',
     registered_at: now,
