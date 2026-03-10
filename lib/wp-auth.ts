@@ -4,18 +4,16 @@
  */
 import { NextResponse } from 'next/server'
 import { escapeHtml } from '@/lib/utils'
+import { isEmailAllowed } from '@/lib/storage'
 
 interface GoogleUser { email: string; name: string; picture: string }
 
-export function buildWordPressRedirect(
+export async function buildWordPressRedirect(
   googleUser: GoogleUser,
   wpRedirectUri: string,
   wpState: string | undefined,
-): NextResponse {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { isEmailAllowed } = require('../config/allowedEmails')
-
-  if (!isEmailAllowed(googleUser.email)) {
+): Promise<NextResponse> {
+  if (!await isEmailAllowed(googleUser.email)) {
     const html = `<!DOCTYPE html>
 <html>
   <head><title>Access Denied — Cad Dev SSO</title></head>

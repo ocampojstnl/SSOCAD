@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
   // Already authenticated with Google? Issue the token immediately.
   if (session.googleUser) {
-    const response = buildWordPressRedirect(session.googleUser, redirect_uri, state)
+    const response = await buildWordPressRedirect(session.googleUser, redirect_uri, state)
     // Only save if we're not already returning an error response
     await session.save()
     return response

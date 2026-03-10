@@ -1,12 +1,19 @@
 const fs = require('fs');
 const path = require('path');
+const DATA_DIR = require('./dataDir');
 
-const DATA_FILE = path.join(__dirname, '..', 'data', 'allowed-emails.json');
+const DATA_FILE = path.join(DATA_DIR, 'allowed-emails.json');
 
 function ensureDataFile() {
-  const dir = path.dirname(DATA_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]');
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(DATA_FILE)) {
+    // Seed from env var on first access (handles Vercel cold starts)
+    const seed = (process.env.ALLOWED_EMAILS || '')
+      .split(',')
+      .map(e => e.toLowerCase().trim())
+      .filter(Boolean);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(seed, null, 2));
+  }
 }
 
 function loadEmails() {

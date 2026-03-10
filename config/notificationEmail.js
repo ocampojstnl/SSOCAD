@@ -1,11 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const DATA_DIR = require('./dataDir');
 
-const DATA_FILE = path.join(__dirname, '..', 'data', 'notification-email.json');
+const DATA_FILE = path.join(DATA_DIR, 'notification-email.json');
 
 function ensureDataDir() {
-  const dir = path.dirname(DATA_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 function loadNotificationEmail() {

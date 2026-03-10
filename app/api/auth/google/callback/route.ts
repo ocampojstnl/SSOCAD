@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       session.wpRedirectUri = undefined
       session.wpState       = undefined
       await session.save()
-      return buildWordPressRedirect(session.googleUser, wpRedirectUri, wpState)
+      return await buildWordPressRedirect(session.googleUser, wpRedirectUri, wpState)
     }
 
     await session.save()

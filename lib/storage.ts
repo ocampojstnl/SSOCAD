@@ -61,7 +61,14 @@ export interface SiteRecord {
 // ── Emails ───────────────────────────────────────────────────────────────────
 
 export async function getEmails(): Promise<string[]> {
-  return USE_KV ? kvGet('emails', []) : fsRead('allowed-emails.json', [])
+  if (USE_KV) return kvGet('emails', [])
+  const stored = fsRead<string[]>('allowed-emails.json', [])
+  if (stored.length > 0) return stored
+  // Seed from env var on cold starts (Vercel /tmp is ephemeral)
+  const seed = (process.env.ALLOWED_EMAILS || '')
+    .split(',').map(e => e.toLowerCase().trim()).filter(Boolean)
+  if (seed.length > 0) fsWrite('allowed-emails.json', seed)
+  return seed
 }
 
 export async function addEmail(email: string): Promise<void> {
