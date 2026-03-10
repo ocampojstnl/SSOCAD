@@ -4,7 +4,7 @@
  */
 import { NextResponse } from 'next/server'
 import { escapeHtml } from '@/lib/utils'
-import { isEmailAllowed, isEmailAllowedForSite } from '@/lib/storage'
+import { isEmailAllowedForSite } from '@/lib/storage'
 import { loadPrivateKey } from '@/lib/keys'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
@@ -17,9 +17,19 @@ export async function buildWordPressRedirect(
   wpState: string | undefined,
   wpSiteId?: string,
 ): Promise<NextResponse> {
-  const allowed = wpSiteId
-    ? await isEmailAllowedForSite(googleUser.email, wpSiteId)
-    : await isEmailAllowed(googleUser.email)
+  if (!wpSiteId) {
+    // Site couldn't be identified — deny rather than fall back to the global list.
+    try {
+      const loginUrl = new URL(wpRedirectUri)
+      loginUrl.search = ''
+      loginUrl.searchParams.set('cad_dev_login', '1')
+      loginUrl.searchParams.set('cad_dev_error', 'Site is not registered with the SSO provider.')
+      return NextResponse.redirect(loginUrl)
+    } catch {
+      return new NextResponse('Site is not registered with the SSO provider.', { status: 403 })
+    }
+  }
+  const allowed = await isEmailAllowedForSite(googleUser.email, wpSiteId)
   if (!allowed) {
     // Redirect back to the WP login page with an inline error message
     try {
