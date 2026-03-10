@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyPluginSecret } from '@/lib/guards'
-import { isWhitelisted, isBlacklisted, isEmailAllowed } from '@/lib/storage'
+import { isWhitelisted, isBlacklisted, isEmailAllowed, getTrustedSignal } from '@/lib/storage'
 import { loadPrivateKey } from '@/lib/keys'
 
 export async function POST(request: NextRequest) {
@@ -11,16 +11,19 @@ export async function POST(request: NextRequest) {
   let body: {
     ip?: string
     fingerprint_hash?: string
-    db_user_email?: string | null
     cookie_user_email?: string | null
   }
   try { body = await request.json() } catch { body = {} }
 
-  const { ip, fingerprint_hash, db_user_email, cookie_user_email } = body
+  const { ip, fingerprint_hash, cookie_user_email } = body
 
   if (!ip || !fingerprint_hash) {
     return NextResponse.json({ error: 'ip and fingerprint_hash are required.' }, { status: 400 })
   }
+
+  // Look up trusted signal from web app's own storage (single source of truth)
+  const signal = await getTrustedSignal(ip, fingerprint_hash)
+  const db_user_email = signal?.email ?? null
 
   // Step 1: Hard block — IP on blacklist
   if (await isBlacklisted(ip)) {

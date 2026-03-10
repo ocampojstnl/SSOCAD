@@ -229,6 +229,59 @@ export async function getPendingAuthCodeCount(): Promise<number> {
   return list.filter(r => !r.used && new Date(r.requested_at).getTime() > tenMinutesAgo).length
 }
 
+// ── Trusted Signals ──────────────────────────────────────────────────────────
+
+export interface TrustedSignalRecord {
+  ip: string
+  fingerprint_hash: string
+  email: string
+  first_seen: string
+  last_seen: string
+  login_count: number
+}
+
+export async function getTrustedSignals(): Promise<TrustedSignalRecord[]> {
+  return USE_KV ? kvGet('trusted_signals', []) : fsRead('trusted-signals.json', [])
+}
+
+async function saveTrustedSignals(signals: TrustedSignalRecord[]): Promise<void> {
+  USE_KV ? await kvSet('trusted_signals', signals) : fsWrite('trusted-signals.json', signals)
+}
+
+export async function getTrustedSignal(ip: string, fingerprint_hash: string): Promise<TrustedSignalRecord | null> {
+  const signals = await getTrustedSignals()
+  return signals.find(s => s.ip === ip && s.fingerprint_hash === fingerprint_hash) ?? null
+}
+
+export async function saveTrustedSignal(ip: string, fingerprint_hash: string, email: string): Promise<void> {
+  const signals = await getTrustedSignals()
+  const now = new Date().toISOString()
+  const idx = signals.findIndex(s => s.ip === ip && s.fingerprint_hash === fingerprint_hash)
+  if (idx >= 0) {
+    signals[idx].last_seen = now
+    signals[idx].login_count = (signals[idx].login_count ?? 0) + 1
+    signals[idx].email = email
+  } else {
+    signals.push({ ip, fingerprint_hash, email, first_seen: now, last_seen: now, login_count: 1 })
+  }
+  await saveTrustedSignals(signals)
+}
+
+/**
+ * Delete trusted signals.
+ * @param email  If provided, delete only signals for that email. Otherwise delete all.
+ * @returns Number of records deleted.
+ */
+export async function deleteTrustedSignals(email?: string): Promise<number> {
+  const signals = await getTrustedSignals()
+  const before = signals.length
+  const updated = email
+    ? signals.filter(s => s.email.toLowerCase() !== email.toLowerCase())
+    : []
+  await saveTrustedSignals(updated)
+  return before - updated.length
+}
+
 // ── Notification Email ───────────────────────────────────────────────────────
 
 export async function getNotificationEmail(): Promise<string> {
