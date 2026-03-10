@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyPluginSecret } from '@/lib/guards'
 import { isWhitelisted, isBlacklisted, isEmailAllowed } from '@/lib/storage'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadPrivateKey } = require('../../../../config/keys')
+import { loadPrivateKey } from '@/lib/keys'
 
 export async function POST(request: NextRequest) {
   if (!verifyPluginSecret(request)) {
@@ -58,8 +56,7 @@ export async function POST(request: NextRequest) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const jwt    = require('jsonwebtoken')
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const crypto = require('crypto')
+    const crypto = (await import('crypto')).default
 
     const privateKey = loadPrivateKey()
     const appUrl     = process.env.APP_URL

@@ -3,9 +3,7 @@ import { getIronSession } from 'iron-session'
 import { cookies } from 'next/headers'
 import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadPublicKey } = require('../../../../config/keys')
+import { loadPublicKey } from '@/lib/keys'
 
 export async function GET() {
   const session = await getIronSession<SessionData>(await cookies(), sessionOptions)

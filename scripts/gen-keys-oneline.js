@@ -1,0 +1,7 @@
+const crypto = require('crypto')
+const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+const priv = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString().trim()
+const pub  = publicKey.export({ type: 'spki', format: 'pem' }).toString().trim()
+const oneline = s => s.split(/\r?\n/).join('\\n')
+process.stdout.write('RSA_PRIVATE_KEY=' + oneline(priv) + '\n\n')
+process.stdout.write('RSA_PUBLIC_KEY='  + oneline(pub)  + '\n')

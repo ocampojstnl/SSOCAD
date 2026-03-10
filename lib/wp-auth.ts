@@ -5,25 +5,11 @@
 import { NextResponse } from 'next/server'
 import { escapeHtml } from '@/lib/utils'
 import { isEmailAllowed } from '@/lib/storage'
+import { loadPrivateKey } from '@/lib/keys'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 
 interface GoogleUser { email: string; name: string; picture: string }
-
-function loadPrivateKey() {
-  const raw = process.env.RSA_PRIVATE_KEY
-  if (!raw) throw new Error('RSA_PRIVATE_KEY environment variable is not set')
-  // Strip everything down to raw base64, then rebuild a clean PEM.
-  // This tolerates any newline variant, double-escaping, or missing line breaks
-  // that can result from pasting into Vercel's env var UI.
-  const base64 = raw
-    .replace(/-----[^-]+-----/g, '') // remove PEM headers/footers
-    .replace(/[^A-Za-z0-9+/=]/g, '') // keep only valid base64 chars, strip everything else
-  if (!base64) throw new Error('RSA_PRIVATE_KEY is empty after stripping PEM headers')
-  const lines = (base64.match(/.{1,64}/g) ?? []).join('\n')
-  const pem = `-----BEGIN PRIVATE KEY-----\n${lines}\n-----END PRIVATE KEY-----\n`
-  return crypto.createPrivateKey({ key: pem, format: 'pem' })
-}
 
 export async function buildWordPressRedirect(
   googleUser: GoogleUser,

@@ -1,11 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyPluginSecret } from '@/lib/guards'
 import { markAuthCodeUsed, getNotificationEmail } from '@/lib/storage'
+import { loadPrivateKey } from '@/lib/keys'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadPrivateKey } = require('../../../../../config/keys')
 
 export async function POST(request: NextRequest) {
   if (!verifyPluginSecret(request)) {

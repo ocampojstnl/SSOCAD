@@ -6,10 +6,9 @@ import jwt from 'jsonwebtoken'
 import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
 
+import { loadPrivateKey } from '@/lib/keys'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { getSite } = require('../../../../../../config/sites')
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadPrivateKey } = require('../../../../../../config/keys')
 
 export async function GET(
   _request: NextRequest,
