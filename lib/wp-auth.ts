@@ -40,6 +40,10 @@ export async function buildWordPressRedirect(
     return new NextResponse('APP_URL is not configured.', { status: 500 })
   }
 
+  if (!process.env.RSA_PRIVATE_KEY) {
+    return new NextResponse('RSA_PRIVATE_KEY is not set in environment variables.', { status: 500 })
+  }
+
   let token: string
   try {
     const privateKey = loadPrivateKey()
@@ -49,8 +53,9 @@ export async function buildWordPressRedirect(
       { algorithm: 'RS256', expiresIn: '5m', jwtid: crypto.randomBytes(16).toString('hex') },
     )
   } catch (err) {
-    console.error('JWT signing error:', (err as Error).message)
-    return new NextResponse('Failed to issue authentication token.', { status: 500 })
+    const msg = (err as Error).message
+    console.error('JWT signing error:', msg)
+    return new NextResponse(`JWT signing failed: ${msg}`, { status: 500 })
   }
 
   const redirectUrl = new URL(wpRedirectUri)
