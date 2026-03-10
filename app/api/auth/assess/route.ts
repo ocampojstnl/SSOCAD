@@ -46,8 +46,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ decision: 'BLOCKED' })
   }
 
-  // Step 5: TRUSTED if whitelisted IP or exact DB match
-  const trusted = (await isWhitelisted(ip)) || !!db_user_email
+  // Step 5: TRUSTED only if:
+  //   - IP is explicitly whitelisted, OR
+  //   - DB record AND session cookie both present and agree (same person, same device).
+  //   A DB-only match without the cookie is not enough — the fingerprint alone can't
+  //   distinguish different users on the same physical machine (same UA/screen/TZ).
+  const dbAndCookieAgree = !!db_user_email && !!cookie_user_email
+  const trusted = (await isWhitelisted(ip)) || dbAndCookieAgree
   if (!trusted) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
