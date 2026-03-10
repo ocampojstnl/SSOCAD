@@ -13,10 +13,17 @@ interface GoogleUser { email: string; name: string; picture: string }
 function loadPrivateKey() {
   const raw = process.env.RSA_PRIVATE_KEY
   if (!raw) throw new Error('RSA_PRIVATE_KEY environment variable is not set')
-  // Normalise: replace escaped \n with real newlines, then parse as a KeyObject
-  // so Node.js handles any remaining format quirks.
-  const pem = raw.replace(/\\n/g, '\n')
-  return crypto.createPrivateKey(pem)
+  // Normalise all newline variants and escaped sequences
+  const pem = raw
+    .replace(/\\n/g, '\n')   // escaped \n  → real newline
+    .replace(/\r\n/g, '\n')  // Windows CRLF → LF
+    .replace(/\r/g, '\n')    // old Mac CR   → LF
+    .trim()
+  // Expose first/last chars so we can see if the PEM headers survived
+  if (!pem.startsWith('-----BEGIN')) {
+    throw new Error(`Key does not start with PEM header. Starts with: ${JSON.stringify(pem.slice(0, 40))}`)
+  }
+  return crypto.createPrivateKey({ key: pem, format: 'pem' })
 }
 
 export async function buildWordPressRedirect(
