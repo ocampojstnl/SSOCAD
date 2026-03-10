@@ -10,11 +10,13 @@ import crypto from 'crypto'
 
 interface GoogleUser { email: string; name: string; picture: string }
 
-function loadPrivateKey(): string {
-  const key = process.env.RSA_PRIVATE_KEY
-  if (!key) throw new Error('RSA_PRIVATE_KEY environment variable is not set')
-  // Support both real newlines (multiline paste) and escaped \n
-  return key.replace(/\\n/g, '\n')
+function loadPrivateKey() {
+  const raw = process.env.RSA_PRIVATE_KEY
+  if (!raw) throw new Error('RSA_PRIVATE_KEY environment variable is not set')
+  // Normalise: replace escaped \n with real newlines, then parse as a KeyObject
+  // so Node.js handles any remaining format quirks.
+  const pem = raw.replace(/\\n/g, '\n')
+  return crypto.createPrivateKey(pem)
 }
 
 export async function buildWordPressRedirect(
