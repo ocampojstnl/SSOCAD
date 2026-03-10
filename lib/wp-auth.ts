@@ -13,16 +13,16 @@ interface GoogleUser { email: string; name: string; picture: string }
 function loadPrivateKey() {
   const raw = process.env.RSA_PRIVATE_KEY
   if (!raw) throw new Error('RSA_PRIVATE_KEY environment variable is not set')
-  // Normalise all newline variants and escaped sequences
-  const pem = raw
-    .replace(/\\n/g, '\n')   // escaped \n  → real newline
-    .replace(/\r\n/g, '\n')  // Windows CRLF → LF
-    .replace(/\r/g, '\n')    // old Mac CR   → LF
-    .trim()
-  // Expose first/last chars so we can see if the PEM headers survived
-  if (!pem.startsWith('-----BEGIN')) {
-    throw new Error(`Key does not start with PEM header. Starts with: ${JSON.stringify(pem.slice(0, 40))}`)
-  }
+  // Strip everything down to raw base64, then rebuild a clean PEM.
+  // This tolerates any newline variant, double-escaping, or missing line breaks
+  // that can result from pasting into Vercel's env var UI.
+  const base64 = raw
+    .replace(/\\n/g, '')           // remove escaped \n sequences
+    .replace(/-----[^-]+-----/g, '') // remove PEM headers/footers
+    .replace(/\s+/g, '')            // remove all whitespace
+  if (!base64) throw new Error('RSA_PRIVATE_KEY is empty after stripping PEM headers')
+  const lines = (base64.match(/.{1,64}/g) ?? []).join('\n')
+  const pem = `-----BEGIN PRIVATE KEY-----\n${lines}\n-----END PRIVATE KEY-----\n`
   return crypto.createPrivateKey({ key: pem, format: 'pem' })
 }
 
