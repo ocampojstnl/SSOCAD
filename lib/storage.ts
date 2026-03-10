@@ -213,16 +213,24 @@ export async function removeSiteEmail(site_id: string, email: string): Promise<S
 
 /**
  * Check if an email is allowed to access a specific site.
- * If the site has a per-site allowlist configured, it is the exclusive whitelist —
- * only those emails can access that site (super-admins included must be listed).
- * If no per-site list is configured, falls back to the global allowed-emails list.
+ *
+ * Rules (in order):
+ *  1. Site not found → deny (unknown site_id).
+ *  2. Site has a per-site allowlist → only those emails are accepted (exclusive).
+ *  3. No per-site list configured → fall back to the global allowed-emails list.
+ *
+ * The global list acts as a default for unrestricted sites. The moment even one
+ * email is added to a site's list it becomes an exclusive whitelist — the global
+ * list no longer grants access to that site.
  */
 export async function isEmailAllowedForSite(email: string, site_id: string): Promise<boolean> {
   const lower = email.toLowerCase().trim()
   const site = await getSite(site_id)
-  if (site?.allowed_emails && site.allowed_emails.length > 0) {
+  if (!site) return false  // unknown site → deny
+  if (site.allowed_emails && site.allowed_emails.length > 0) {
     return site.allowed_emails.map(e => e.toLowerCase()).includes(lower)
   }
+  // No per-site list yet → fall back to global list
   return isEmailAllowed(lower)
 }
 

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authenticatePlugin } from '@/lib/guards'
-import { isWhitelisted, isBlacklisted, isEmailAllowed, isEmailAllowedForSite, getTrustedSignal, getSites } from '@/lib/storage'
+import { isWhitelisted, isBlacklisted, isEmailAllowedForSite, getTrustedSignal, getSites } from '@/lib/storage'
 import { loadPrivateKey } from '@/lib/keys'
 
 export async function POST(request: NextRequest) {
@@ -57,12 +57,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 
-  // Step 4: Access check — email not allowed for this site → force re-authentication
-  // Return UNCERTAIN (not BLOCKED) so the user can still attempt Layer 2.
-  // The actual authorization check happens when the JWT is issued at Layer 2.
-  const emailOk = site_id
-    ? await isEmailAllowedForSite(user_email, site_id)
-    : await isEmailAllowed(user_email)
+  // Step 4: Site must be identified before we can check access.
+  // If site_id is still unknown (domain lookup also failed) we cannot enforce
+  // per-site restrictions, so refuse to issue a TRUSTED token — send the user
+  // through Layer 2 (Google SSO) which always resolves the site by domain.
+  if (!site_id) {
+    return NextResponse.json({ decision: 'UNCERTAIN' })
+  }
+
+  // Step 4b: Access check — email must be on this site's allowlist.
+  // Returns UNCERTAIN so the user can still attempt Layer 2.
+  const emailOk = await isEmailAllowedForSite(user_email, site_id)
   if (!emailOk) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
