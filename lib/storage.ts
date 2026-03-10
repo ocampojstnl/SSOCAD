@@ -6,6 +6,7 @@
 
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import { kv } from '@vercel/kv'
 
 const USE_KV = !!process.env.KV_REST_API_URL
@@ -56,6 +57,7 @@ export interface SiteRecord {
   registered_at: string
   last_seen: string
   blocked?: boolean
+  project_key?: string  // per-site authentication key (admin-generated)
 }
 
 // ── Emails ───────────────────────────────────────────────────────────────────
@@ -187,6 +189,54 @@ export async function setSiteBlocked(site_id: string, blocked: boolean): Promise
   const site  = sites.find(s => s.site_id === site_id)
   if (site) {
     site.blocked = blocked
+    await saveSites(sites)
+  }
+  return site ?? null
+}
+
+export function generateProjectKey(): string {
+  return `cad_${crypto.randomBytes(20).toString('hex')}`
+}
+
+export async function getSiteByProjectKey(key: string): Promise<SiteRecord | null> {
+  return (await getSites()).find(s => s.project_key === key) ?? null
+}
+
+/** Admin creates a site manually — generates a project key immediately. */
+export async function createSiteByAdmin(domain: string): Promise<SiteRecord> {
+  const sites = await getSites()
+  const now = new Date().toISOString()
+  const site_id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+  const site: SiteRecord = {
+    site_id,
+    domain: domain.trim().replace(/\/+$/, ''),
+    owner_email: null,
+    plugin_version: 'unknown',
+    registered_at: now,
+    last_seen: now,
+    project_key: generateProjectKey(),
+  }
+  sites.push(site)
+  await saveSites(sites)
+  return site
+}
+
+/** Generate a project key for an existing site that doesn't have one yet. */
+export async function assignProjectKey(site_id: string): Promise<SiteRecord | null> {
+  const sites = await getSites()
+  const site = sites.find(s => s.site_id === site_id)
+  if (site && !site.project_key) {
+    site.project_key = generateProjectKey()
+    await saveSites(sites)
+  }
+  return site ?? null
+}
+
+export async function updateSiteDomain(site_id: string, domain: string): Promise<SiteRecord | null> {
+  const sites = await getSites()
+  const site = sites.find(s => s.site_id === site_id)
+  if (site) {
+    site.domain = domain.trim().replace(/\/+$/, '')
     await saveSites(sites)
   }
   return site ?? null

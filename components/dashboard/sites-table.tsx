@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react'
 import {
   Loader2, LogIn, ExternalLink, Copy, Ban, CheckCircle, ShieldOff,
   Users, LayoutList, LayoutGrid, RefreshCw, Clock, LogOut, PowerOff,
+  Pencil, Eye, EyeOff, Key, Plus, KeyRound,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -31,6 +33,7 @@ interface Site {
   registered_at: string
   last_seen: string
   blocked?: boolean
+  project_key?: string
 }
 
 interface LoginSession {
@@ -83,6 +86,10 @@ function StatusBadge({ site }: { site: Site }) {
   )
 }
 
+function truncateKey(key: string) {
+  return key.slice(0, 12) + '…' + key.slice(-4)
+}
+
 export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
   const [sites, setSites] = useState(initialSites)
   const [viewMode, setViewMode] = useState<ViewMode>('table')
@@ -96,7 +103,24 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
   const [sessions, setSessions] = useState<LoginSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [activeCounts, setActiveCounts] = useState<Record<string, number>>({})
-  const [forcingOut, setForcingOut] = useState<string | null>(null) // session id being forced out
+  const [forcingOut, setForcingOut] = useState<string | null>(null)
+
+  // Register new site dialog
+  const [registerOpen, setRegisterOpen] = useState(false)
+  const [registerDomain, setRegisterDomain] = useState('')
+  const [registering, setRegistering] = useState(false)
+  const [newSite, setNewSite] = useState<Site | null>(null)
+  const [newKeyVisible, setNewKeyVisible] = useState(false)
+
+  // Edit domain dialog
+  const [editSite, setEditSite] = useState<Site | null>(null)
+  const [editDomain, setEditDomain] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  // View / Generate project key
+  const [viewKeySite, setViewKeySite] = useState<Site | null>(null)
+  const [keyVisible, setKeyVisible] = useState(false)
+  const [generatingKeyId, setGeneratingKeyId] = useState<string | null>(null)
 
   // Restore view preference
   useEffect(() => {
@@ -108,6 +132,103 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
     setViewMode(mode)
     localStorage.setItem('cad_dev_sites_view', mode)
   }
+
+  // ── Register new site ────────────────────────────────────────────────────────
+
+  async function handleRegister() {
+    const domain = registerDomain.trim()
+    if (!domain) return
+    setRegistering(true)
+    try {
+      const res = await fetch('/api/admin/sites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        const created: Site = data.site
+        setSites(prev => [created, ...prev])
+        setRegisterDomain('')
+        setNewSite(created)
+        setNewKeyVisible(false)
+        toast.success('Site registered')
+      } else {
+        toast.error(data.error ?? 'Failed to register site')
+      }
+    } finally {
+      setRegistering(false)
+    }
+  }
+
+  function openRegister() {
+    setRegisterDomain('')
+    setNewSite(null)
+    setNewKeyVisible(false)
+    setRegisterOpen(true)
+  }
+
+  function closeRegister() {
+    setRegisterOpen(false)
+    setNewSite(null)
+    setRegisterDomain('')
+  }
+
+  // ── Edit domain ──────────────────────────────────────────────────────────────
+
+  function openEditDomain(site: Site) {
+    setEditSite(site)
+    setEditDomain(site.domain)
+  }
+
+  async function handleSaveDomain() {
+    if (!editSite) return
+    const domain = editDomain.trim()
+    if (!domain || domain === editSite.domain) { setEditSite(null); return }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/admin/sites/${editSite.site_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setSites(prev => prev.map(s =>
+          s.site_id === editSite.site_id ? { ...s, domain } : s
+        ))
+        setEditSite(null)
+        toast.success('Domain updated')
+      } else {
+        toast.error(data.error ?? 'Failed to update domain')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── Generate project key ─────────────────────────────────────────────────────
+
+  async function handleGenerateKey(site: Site) {
+    setGeneratingKeyId(site.site_id)
+    try {
+      const res = await fetch(`/api/admin/sites/${site.site_id}/generate-key`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        const updated: Site = data.site
+        setSites(prev => prev.map(s => s.site_id === site.site_id ? updated : s))
+        setViewKeySite(updated)
+        setKeyVisible(true)
+        toast.success('Project key generated')
+      } else {
+        toast.error(data.error ?? 'Failed to generate key')
+      }
+    } finally {
+      setGeneratingKeyId(null)
+    }
+  }
+
+  // ── Block/Unblock ────────────────────────────────────────────────────────────
 
   async function handleToggleBlock(site: Site) {
     setBlockingId(site.site_id)
@@ -131,6 +252,8 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
     }
   }
 
+  // ── Push Login ───────────────────────────────────────────────────────────────
+
   async function handlePushLogin(site_id: string) {
     setLoadingId(site_id)
     try {
@@ -146,6 +269,8 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
       setLoadingId(null)
     }
   }
+
+  // ── Reset Trust ──────────────────────────────────────────────────────────────
 
   async function handleResetTrust(site_id: string) {
     setResetingId(site_id)
@@ -165,6 +290,8 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
       setResetingId(null)
     }
   }
+
+  // ── Sessions ─────────────────────────────────────────────────────────────────
 
   async function openSessions(site: Site) {
     setSessionSite(site)
@@ -196,7 +323,6 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        // Update session in local state immediately
         setSessions(prev => prev.map(s =>
           s.id === session.id
             ? { ...s, status: 'signed_out', logout_at: new Date().toISOString() }
@@ -215,7 +341,39 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
     }
   }
 
-  // ── Action buttons (shared between table and grid) ──────────────────────────
+  // ── Project Key badge/button (inline) ────────────────────────────────────────
+
+  function ProjectKeyCell({ site }: { site: Site }) {
+    if (site.project_key) {
+      return (
+        <button
+          onClick={() => { setViewKeySite(site); setKeyVisible(false) }}
+          className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-[10px] bg-zinc-800 border border-zinc-700 text-zinc-300 hover:border-zinc-500 transition-colors"
+          title="View project key"
+        >
+          <KeyRound className="h-2.5 w-2.5 text-zinc-500" />
+          {truncateKey(site.project_key)}
+        </button>
+      )
+    }
+    return (
+      <button
+        disabled={generatingKeyId === site.site_id}
+        onClick={() => handleGenerateKey(site)}
+        className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium bg-amber-400/10 border border-amber-400/30 text-amber-400 hover:bg-amber-400/20 disabled:opacity-50 transition-colors"
+        title="Generate a project key for this site"
+      >
+        {generatingKeyId === site.site_id ? (
+          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+        ) : (
+          <Key className="h-2.5 w-2.5" />
+        )}
+        Generate Key
+      </button>
+    )
+  }
+
+  // ── Action buttons (shared between table and grid) ───────────────────────────
 
   function ActionButtons({ site }: { site: Site }) {
     return (
@@ -287,7 +445,7 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
     )
   }
 
-  // ── View toggle header ───────────────────────────────────────────────────────
+  // ── View toggle ──────────────────────────────────────────────────────────────
 
   const ViewToggle = (
     <div className="flex items-center gap-1 border border-zinc-700 rounded-md p-0.5">
@@ -310,8 +468,16 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
 
   return (
     <>
-      {/* View toggle — top right of the list */}
-      <div className="flex justify-end px-6 pt-4 pb-2">
+      {/* Top bar: Register button + view toggle */}
+      <div className="flex items-center justify-between px-6 pt-4 pb-2">
+        <Button
+          size="sm"
+          onClick={openRegister}
+          className="h-8 gap-1.5 text-xs"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Register New Site
+        </Button>
         {ViewToggle}
       </div>
 
@@ -325,13 +491,25 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
               <TableHead>Version</TableHead>
               <TableHead>Last Seen</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Project Key</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sites.map(site => (
               <TableRow key={site.site_id}>
-                <TableCell className="font-mono text-xs">{site.domain}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  <div className="flex items-center gap-1.5">
+                    {site.domain}
+                    <button
+                      onClick={() => openEditDomain(site)}
+                      className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                      title="Edit domain"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  </div>
+                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {site.owner_email ?? '—'}
                 </TableCell>
@@ -343,6 +521,9 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
                 </TableCell>
                 <TableCell>
                   <StatusBadge site={site} />
+                </TableCell>
+                <TableCell>
+                  <ProjectKeyCell site={site} />
                 </TableCell>
                 <TableCell>
                   <ActionButtons site={site} />
@@ -364,22 +545,31 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
               {/* Header */}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <a
-                    href={site.domain}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 font-mono text-xs text-white hover:underline truncate"
-                  >
-                    {site.domain}
-                    <ExternalLink className="h-3 w-3 shrink-0 text-zinc-500" />
-                  </a>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={site.domain}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 font-mono text-xs text-white hover:underline truncate"
+                    >
+                      {site.domain}
+                      <ExternalLink className="h-3 w-3 shrink-0 text-zinc-500" />
+                    </a>
+                    <button
+                      onClick={() => openEditDomain(site)}
+                      className="text-zinc-600 hover:text-zinc-300 transition-colors shrink-0"
+                      title="Edit domain"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  </div>
                   <p className="mt-0.5 text-xs text-zinc-500">{site.owner_email ?? 'No owner'}</p>
                 </div>
                 <StatusBadge site={site} />
               </div>
 
               {/* Meta */}
-              <div className="flex gap-4 text-[11px] text-zinc-500">
+              <div className="flex flex-wrap gap-3 text-[11px] text-zinc-500">
                 <span>v{site.plugin_version}</span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
@@ -393,12 +583,190 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
                 )}
               </div>
 
+              {/* Project key */}
+              <div>
+                <ProjectKeyCell site={site} />
+              </div>
+
               {/* Actions */}
               <ActionButtons site={site} />
             </div>
           ))}
         </div>
       )}
+
+      {/* ── REGISTER NEW SITE DIALOG ───────────────────────────────────────── */}
+      <Dialog open={registerOpen} onOpenChange={open => { if (!open) closeRegister() }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Register New Site
+            </DialogTitle>
+            <DialogDescription>
+              Enter the WordPress site domain. A unique project key will be generated.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!newSite ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs text-zinc-400">Domain</label>
+                <Input
+                  placeholder="https://example.com"
+                  value={registerDomain}
+                  onChange={e => setRegisterDomain(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !registering && handleRegister()}
+                  className="bg-zinc-800 border-zinc-700 text-sm"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" className="border-zinc-700" onClick={closeRegister}>
+                  Cancel
+                </Button>
+                <Button onClick={handleRegister} disabled={registering || !registerDomain.trim()}>
+                  {registering ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  Register Site
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-emerald-400">
+                Site registered successfully. Copy the project key below and paste it into the plugin settings.
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-zinc-400">Project Key</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-xs text-zinc-200 overflow-hidden">
+                    {newKeyVisible ? newSite.project_key : '••••••••••••••••••••••••••••'}
+                  </div>
+                  <button
+                    onClick={() => setNewKeyVisible(v => !v)}
+                    className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                    title={newKeyVisible ? 'Hide key' : 'Show key'}
+                  >
+                    {newKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    navigator.clipboard.writeText(newSite.project_key ?? '')
+                    toast.success('Project key copied')
+                  }}
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  Copy Key
+                </Button>
+                <Button variant="outline" className="border-zinc-700" onClick={closeRegister}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── EDIT DOMAIN DIALOG ────────────────────────────────────────────── */}
+      <Dialog open={!!editSite} onOpenChange={open => { if (!open) setEditSite(null) }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-4 w-4" />
+              Edit Domain
+            </DialogTitle>
+            <DialogDescription>
+              Update the domain for this site. The plugin will use the new domain on the next ping.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs text-zinc-400">Domain</label>
+              <Input
+                value={editDomain}
+                onChange={e => setEditDomain(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !saving && handleSaveDomain()}
+                className="bg-zinc-800 border-zinc-700 text-sm font-mono"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" className="border-zinc-700" onClick={() => setEditSite(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveDomain} disabled={saving || !editDomain.trim()}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                Save Domain
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── VIEW PROJECT KEY DIALOG ───────────────────────────────────────── */}
+      <Dialog open={!!viewKeySite} onOpenChange={open => { if (!open) { setViewKeySite(null); setKeyVisible(false) } }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-zinc-400" />
+              Project Key
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              {viewKeySite?.domain}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-zinc-400">
+              Paste this key into the plugin settings under <span className="font-mono text-zinc-300">Project Key</span>. Keep it secret — it authenticates all API calls from this site.
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-xs text-zinc-200 break-all">
+                  {keyVisible ? viewKeySite?.project_key : '••••••••••••••••••••••••••••••••••••••••••••••••'}
+                </div>
+                <button
+                  onClick={() => setKeyVisible(v => !v)}
+                  className="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+                  title={keyVisible ? 'Hide key' : 'Reveal key'}
+                >
+                  {keyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  navigator.clipboard.writeText(viewKeySite?.project_key ?? '')
+                  toast.success('Project key copied')
+                }}
+              >
+                <Copy className="h-4 w-4 mr-1" />
+                Copy Key
+              </Button>
+              <Button
+                variant="outline"
+                className="border-amber-400/30 text-amber-400 hover:bg-amber-400/10"
+                disabled={generatingKeyId === viewKeySite?.site_id}
+                onClick={() => viewKeySite && handleGenerateKey(viewKeySite)}
+                title="Rotate — generates a new key (old key stops working immediately)"
+              >
+                {generatingKeyId === viewKeySite?.site_id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Rotate
+              </Button>
+            </div>
+            <p className="text-[10px] text-zinc-600">Rotate only if the key is compromised. The old key stops working immediately.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── PUSH LOGIN DIALOG ─────────────────────────────────────────────── */}
       <Dialog open={!!pushUrl} onOpenChange={() => setPushUrl(null)}>
