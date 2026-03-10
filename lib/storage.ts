@@ -282,6 +282,52 @@ export async function deleteTrustedSignals(email?: string): Promise<number> {
   return before - updated.length
 }
 
+// ── Login Sessions ───────────────────────────────────────────────────────────
+
+export interface LoginSession {
+  id: string
+  site_id: string
+  email: string
+  login_at: string
+  logout_at?: string
+  status: 'active' | 'signed_out'
+}
+
+export async function getLoginSessions(site_id?: string): Promise<LoginSession[]> {
+  const all: LoginSession[] = USE_KV
+    ? await kvGet('login_sessions', [])
+    : fsRead('login-sessions.json', [])
+  return site_id ? all.filter(s => s.site_id === site_id) : all
+}
+
+async function saveLoginSessions(sessions: LoginSession[]): Promise<void> {
+  USE_KV ? await kvSet('login_sessions', sessions) : fsWrite('login-sessions.json', sessions)
+}
+
+export async function addLoginSession(site_id: string, email: string): Promise<void> {
+  const all = await getLoginSessions()
+  const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+  const now = new Date().toISOString()
+  const updated = [
+    { id, site_id, email: email.toLowerCase(), login_at: now, status: 'active' as const },
+    ...all,
+  ].slice(0, 1000)
+  await saveLoginSessions(updated)
+}
+
+export async function markSessionLoggedOut(site_id: string, email: string): Promise<void> {
+  const all = await getLoginSessions()
+  const now = new Date().toISOString()
+  const idx = all.findIndex(
+    s => s.site_id === site_id && s.email === email.toLowerCase() && s.status === 'active'
+  )
+  if (idx >= 0) {
+    all[idx].status = 'signed_out'
+    all[idx].logout_at = now
+    await saveLoginSessions(all)
+  }
+}
+
 // ── Notification Email ───────────────────────────────────────────────────────
 
 export async function getNotificationEmail(): Promise<string> {
