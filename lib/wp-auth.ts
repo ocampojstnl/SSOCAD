@@ -5,8 +5,17 @@
 import { NextResponse } from 'next/server'
 import { escapeHtml } from '@/lib/utils'
 import { isEmailAllowed } from '@/lib/storage'
+import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 
 interface GoogleUser { email: string; name: string; picture: string }
+
+function loadPrivateKey(): string {
+  const key = process.env.RSA_PRIVATE_KEY
+  if (!key) throw new Error('RSA_PRIVATE_KEY environment variable is not set')
+  // Support both real newlines (multiline paste) and escaped \n
+  return key.replace(/\\n/g, '\n')
+}
 
 export async function buildWordPressRedirect(
   googleUser: GoogleUser,
@@ -25,13 +34,6 @@ export async function buildWordPressRedirect(
 </html>`
     return new NextResponse(html, { status: 403, headers: { 'Content-Type': 'text/html' } })
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const jwt    = require('jsonwebtoken')
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const crypto = require('crypto')
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { loadPrivateKey } = require('../config/keys')
 
   const appUrl = process.env.APP_URL
   if (!appUrl) {
