@@ -378,6 +378,71 @@ export async function markSessionLoggedOut(site_id: string, email: string): Prom
   }
 }
 
+// ── Bug Reports / Feature Requests ───────────────────────────────────────────
+
+export type BugStatus   = 'backlog' | 'active' | 'done' | 'denied'
+export type BugType     = 'bug' | 'feature'
+export type BugPriority = 'low' | 'medium' | 'high'
+
+export interface BugReport {
+  id: string
+  type: BugType
+  title: string
+  description: string
+  priority: BugPriority
+  status: BugStatus
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export async function getBugReports(): Promise<BugReport[]> {
+  return USE_KV ? kvGet('bug_reports', []) : fsRead('bug-reports.json', [])
+}
+
+async function saveBugReports(reports: BugReport[]): Promise<void> {
+  USE_KV ? await kvSet('bug_reports', reports) : fsWrite('bug-reports.json', reports)
+}
+
+export async function addBugReport(data: {
+  type: BugType; title: string; description: string; priority: BugPriority
+}): Promise<BugReport> {
+  const reports = await getBugReports()
+  const now = new Date().toISOString()
+  const report: BugReport = {
+    id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    type: data.type,
+    title: data.title.trim(),
+    description: data.description.trim(),
+    priority: data.priority,
+    status: 'backlog',
+    created_at: now,
+    updated_at: now,
+  }
+  await saveBugReports([report, ...reports])
+  return report
+}
+
+export async function updateBugReport(
+  id: string,
+  patch: Partial<Pick<BugReport, 'status' | 'title' | 'description' | 'priority' | 'notes' | 'type'>>
+): Promise<BugReport | null> {
+  const reports = await getBugReports()
+  const idx = reports.findIndex(r => r.id === id)
+  if (idx < 0) return null
+  reports[idx] = { ...reports[idx], ...patch, updated_at: new Date().toISOString() }
+  await saveBugReports(reports)
+  return reports[idx]
+}
+
+export async function deleteBugReport(id: string): Promise<boolean> {
+  const reports = await getBugReports()
+  const filtered = reports.filter(r => r.id !== id)
+  if (filtered.length === reports.length) return false
+  await saveBugReports(filtered)
+  return true
+}
+
 // ── Notification Email ───────────────────────────────────────────────────────
 
 export async function getNotificationEmail(): Promise<string> {
