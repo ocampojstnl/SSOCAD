@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Loader2, LogIn, ExternalLink, Copy, Ban, CheckCircle } from 'lucide-react'
+import { Loader2, LogIn, ExternalLink, Copy, Ban, CheckCircle, ShieldOff } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,6 +38,7 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
   const [sites, setSites] = useState(initialSites)
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [blockingId, setBlockingId] = useState<string | null>(null)
+  const [resetingId, setResetingId] = useState<string | null>(null)
   const [pushUrl, setPushUrl] = useState<string | null>(null)
 
   async function handleToggleBlock(site: Site) {
@@ -78,6 +79,25 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
     }
   }
 
+  async function handleResetTrust(site_id: string) {
+    setResetingId(site_id)
+    try {
+      const res = await fetch(`/api/admin/sites/${site_id}/reset-trust`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast.success(`Layer 1 trust reset — ${data.deleted ?? 0} record(s) cleared`)
+      } else {
+        toast.error(data.error ?? 'Failed to reset trust')
+      }
+    } finally {
+      setResetingId(null)
+    }
+  }
+
   return (
     <>
       <Table>
@@ -90,6 +110,7 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
             <TableHead>Status</TableHead>
             <TableHead className="w-[100px]">Block</TableHead>
             <TableHead className="w-[130px]">Push Login</TableHead>
+            <TableHead className="w-[130px]">Reset Trust</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -160,6 +181,22 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
                   ) : (
                     <span className="text-xs text-muted-foreground">No owner</span>
                   )}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={resetingId === site.site_id}
+                    onClick={() => handleResetTrust(site.site_id)}
+                    className="h-7 gap-1 text-xs border-zinc-700 text-amber-400"
+                  >
+                    {resetingId === site.site_id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <ShieldOff className="h-3 w-3" />
+                    )}
+                    Reset Trust
+                  </Button>
                 </TableCell>
               </TableRow>
             )
