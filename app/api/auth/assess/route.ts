@@ -44,9 +44,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 
-  // Step 4: Revocation check
+  // Step 4: Revocation check — email removed from allowed list → force re-authentication
+  // Return UNCERTAIN (not BLOCKED) so the user can still attempt Layer 2.
+  // The actual authorization check happens when the JWT is issued at Layer 2.
   if (!await isEmailAllowed(user_email)) {
-    return NextResponse.json({ decision: 'BLOCKED' })
+    return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 
   // Step 5: TRUSTED only if:
