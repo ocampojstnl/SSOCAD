@@ -17,16 +17,17 @@ export async function buildWordPressRedirect(
   wpState: string | undefined,
 ): Promise<NextResponse> {
   if (!await isEmailAllowed(googleUser.email)) {
-    const html = `<!DOCTYPE html>
-<html>
-  <head><title>Access Denied — Cad Dev SSO</title></head>
-  <body style="font-family:sans-serif;max-width:500px;margin:80px auto;text-align:center">
-    <h2>Access Denied</h2>
-    <p>Your email <strong>${escapeHtml(googleUser.email)}</strong> is not authorized.</p>
-    <p>Contact your administrator to be added to the allowed list.</p>
-  </body>
-</html>`
-    return new NextResponse(html, { status: 403, headers: { 'Content-Type': 'text/html' } })
+    // Redirect back to the WP login page with an inline error message
+    try {
+      const loginUrl = new URL(wpRedirectUri)
+      loginUrl.search = ''
+      loginUrl.searchParams.set('cad_dev_login', '1')
+      loginUrl.searchParams.set('cad_dev_error', `Your email (${googleUser.email}) is not authorized to access this site.`)
+      return NextResponse.redirect(loginUrl)
+    } catch {
+      // Fallback if URL parsing fails
+      return new NextResponse(`Access denied: ${escapeHtml(googleUser.email)} is not authorized.`, { status: 403 })
+    }
   }
 
   const appUrl = process.env.APP_URL
