@@ -4,7 +4,7 @@
  */
 import { NextResponse } from 'next/server'
 import { escapeHtml } from '@/lib/utils'
-import { isEmailAllowed } from '@/lib/storage'
+import { isEmailAllowed, isEmailAllowedForSite } from '@/lib/storage'
 import { loadPrivateKey } from '@/lib/keys'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
@@ -15,8 +15,12 @@ export async function buildWordPressRedirect(
   googleUser: GoogleUser,
   wpRedirectUri: string,
   wpState: string | undefined,
+  wpSiteId?: string,
 ): Promise<NextResponse> {
-  if (!await isEmailAllowed(googleUser.email)) {
+  const allowed = wpSiteId
+    ? await isEmailAllowedForSite(googleUser.email, wpSiteId)
+    : await isEmailAllowed(googleUser.email)
+  if (!allowed) {
     // Redirect back to the WP login page with an inline error message
     try {
       const loginUrl = new URL(wpRedirectUri)

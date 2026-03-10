@@ -1,12 +1,14 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { verifyPluginSecret } from '@/lib/guards'
-import { isWhitelisted, isBlacklisted, isEmailAllowed, getTrustedSignal } from '@/lib/storage'
+import { authenticatePlugin } from '@/lib/guards'
+import { isWhitelisted, isBlacklisted, isEmailAllowed, isEmailAllowedForSite, getTrustedSignal } from '@/lib/storage'
 import { loadPrivateKey } from '@/lib/keys'
 
 export async function POST(request: NextRequest) {
-  if (!verifyPluginSecret(request)) {
-    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
-  }
+  const auth = await authenticatePlugin(request)
+  if (!auth) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
+
+  // When a per-site project key is used we know which site is calling
+  const site_id = 'site' in auth ? auth.site.site_id : null
 
   let body: {
     ip?: string
@@ -44,10 +46,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 
-  // Step 4: Revocation check — email removed from allowed list → force re-authentication
+  // Step 4: Access check — email not allowed for this site → force re-authentication
   // Return UNCERTAIN (not BLOCKED) so the user can still attempt Layer 2.
   // The actual authorization check happens when the JWT is issued at Layer 2.
-  if (!await isEmailAllowed(user_email)) {
+  const emailOk = site_id
+    ? await isEmailAllowedForSite(user_email, site_id)
+    : await isEmailAllowed(user_email)
+  if (!emailOk) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 

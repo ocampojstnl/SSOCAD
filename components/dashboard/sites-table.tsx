@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
   Loader2, LogIn, ExternalLink, Copy, Ban, CheckCircle, ShieldOff,
   Users, LayoutList, LayoutGrid, RefreshCw, Clock, LogOut, PowerOff,
-  Pencil, Eye, EyeOff, Key, Plus, KeyRound,
+  Pencil, Eye, EyeOff, Key, Plus, KeyRound, UserCheck, Trash2,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -104,6 +104,14 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [activeCounts, setActiveCounts] = useState<Record<string, number>>({})
   const [forcingOut, setForcingOut] = useState<string | null>(null)
+
+  // Access (per-site emails) dialog
+  const [accessSite, setAccessSite] = useState<Site | null>(null)
+  const [accessEmails, setAccessEmails] = useState<string[]>([])
+  const [accessLoading, setAccessLoading] = useState(false)
+  const [newAccessEmail, setNewAccessEmail] = useState('')
+  const [addingEmail, setAddingEmail] = useState(false)
+  const [removingEmail, setRemovingEmail] = useState<string | null>(null)
 
   // Register new site dialog
   const [registerOpen, setRegisterOpen] = useState(false)
@@ -341,6 +349,66 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
     }
   }
 
+  // ── Per-site access (emails) ─────────────────────────────────────────────────
+
+  async function openAccess(site: Site) {
+    setAccessSite(site)
+    setAccessEmails([])
+    setNewAccessEmail('')
+    setAccessLoading(true)
+    try {
+      const res = await fetch(`/api/admin/sites/${site.site_id}/emails`)
+      if (res.ok) {
+        const { emails } = await res.json()
+        setAccessEmails(emails)
+      }
+    } finally {
+      setAccessLoading(false)
+    }
+  }
+
+  async function handleAddAccessEmail() {
+    if (!accessSite || !newAccessEmail.trim()) return
+    setAddingEmail(true)
+    try {
+      const res = await fetch(`/api/admin/sites/${accessSite.site_id}/emails`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newAccessEmail.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setAccessEmails(data.emails)
+        setNewAccessEmail('')
+        toast.success('Email added')
+      } else {
+        toast.error(data.error ?? 'Failed to add email')
+      }
+    } finally {
+      setAddingEmail(false)
+    }
+  }
+
+  async function handleRemoveAccessEmail(email: string) {
+    if (!accessSite) return
+    setRemovingEmail(email)
+    try {
+      const res = await fetch(
+        `/api/admin/sites/${accessSite.site_id}/emails/${encodeURIComponent(email)}`,
+        { method: 'DELETE' }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setAccessEmails(data.emails)
+        toast.success('Email removed')
+      } else {
+        toast.error(data.error ?? 'Failed to remove email')
+      }
+    } finally {
+      setRemovingEmail(null)
+    }
+  }
+
   // ── Project Key badge/button (inline) ────────────────────────────────────────
 
   function ProjectKeyCell({ site }: { site: Site }) {
@@ -425,6 +493,16 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
             <ShieldOff className="h-3 w-3" />
           )}
           Reset Trust
+        </Button>
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => openAccess(site)}
+          className="h-7 gap-1 text-xs border-zinc-700 text-violet-400"
+        >
+          <UserCheck className="h-3 w-3" />
+          Access
         </Button>
 
         <Button
@@ -799,6 +877,87 @@ export function SitesTable({ sites: initialSites }: { sites: Site[] }) {
               >
                 <ExternalLink className="h-4 w-4" />
                 Open
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── PER-SITE ACCESS DIALOG ───────────────────────────────────────── */}
+      <Dialog open={!!accessSite} onOpenChange={open => { if (!open) setAccessSite(null) }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-violet-400" />
+              Site Access
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              {accessSite?.domain}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Info */}
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Emails on the <span className="text-zinc-200">global list</span> always have access to every site.
+              Add emails here to grant access to <span className="text-zinc-200">this site only</span>.
+            </p>
+
+            {/* Add email */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="email@example.com"
+                value={newAccessEmail}
+                onChange={e => setNewAccessEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !addingEmail && handleAddAccessEmail()}
+                className="bg-zinc-800 border-zinc-700 text-sm flex-1"
+              />
+              <Button
+                size="sm"
+                onClick={handleAddAccessEmail}
+                disabled={addingEmail || !newAccessEmail.trim()}
+                className="shrink-0"
+              >
+                {addingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+
+            {/* Email list */}
+            <div className="rounded-md border border-zinc-800 overflow-hidden">
+              {accessLoading ? (
+                <div className="flex items-center justify-center py-8 text-zinc-500 text-sm gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                </div>
+              ) : accessEmails.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-zinc-500 text-xs gap-1">
+                  <UserCheck className="h-5 w-5 text-zinc-700" />
+                  <span>No site-specific emails yet.</span>
+                  <span className="text-zinc-600">Global list members still have access.</span>
+                </div>
+              ) : (
+                <ul className="divide-y divide-zinc-800">
+                  {accessEmails.map(email => (
+                    <li key={email} className="flex items-center justify-between px-3 py-2.5">
+                      <span className="text-xs text-zinc-300 font-mono">{email}</span>
+                      <button
+                        disabled={removingEmail === email}
+                        onClick={() => handleRemoveAccessEmail(email)}
+                        className="text-zinc-600 hover:text-red-400 transition-colors disabled:opacity-40"
+                        title="Remove access"
+                      >
+                        {removingEmail === email
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button variant="outline" className="border-zinc-700" onClick={() => setAccessSite(null)}>
+                Close
               </Button>
             </div>
           </div>

@@ -1,10 +1,11 @@
 import type { SessionOptions } from 'iron-session'
 
 export interface SessionData {
-  isAdmin?:      boolean
-  oauthNonce?:   string
+  isAdmin?:       boolean
+  oauthNonce?:    string
   wpRedirectUri?: string
-  wpState?:      string
+  wpState?:       string
+  wpSiteId?:      string  // site_id of the WP site being authenticated against
   googleUser?: {
     email:   string
     name:    string

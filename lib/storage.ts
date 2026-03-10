@@ -57,7 +57,8 @@ export interface SiteRecord {
   registered_at: string
   last_seen: string
   blocked?: boolean
-  project_key?: string  // per-site authentication key (admin-generated)
+  project_key?: string      // per-site authentication key (admin-generated)
+  allowed_emails?: string[] // per-site email allowlist (supplements global list)
 }
 
 // ── Emails ───────────────────────────────────────────────────────────────────
@@ -182,6 +183,44 @@ export async function updateSitePing(site_id: string, domain: string | null): Pr
 
 export async function getSite(site_id: string): Promise<SiteRecord | null> {
   return (await getSites()).find(s => s.site_id === site_id) ?? null
+}
+
+// ── Per-site email allowlist ──────────────────────────────────────────────────
+
+export async function addSiteEmail(site_id: string, email: string): Promise<SiteRecord | null> {
+  const sites = await getSites()
+  const site = sites.find(s => s.site_id === site_id)
+  if (!site) return null
+  const lower = email.toLowerCase().trim()
+  if (!site.allowed_emails) site.allowed_emails = []
+  if (!site.allowed_emails.includes(lower)) {
+    site.allowed_emails.push(lower)
+    await saveSites(sites)
+  }
+  return site
+}
+
+export async function removeSiteEmail(site_id: string, email: string): Promise<SiteRecord | null> {
+  const sites = await getSites()
+  const site = sites.find(s => s.site_id === site_id)
+  if (!site) return null
+  site.allowed_emails = (site.allowed_emails ?? []).filter(
+    e => e !== email.toLowerCase().trim()
+  )
+  await saveSites(sites)
+  return site
+}
+
+/**
+ * Check if an email is allowed to access a specific site.
+ * Global list = super-admins (always allowed everywhere).
+ * Per-site list = additional emails scoped to just that site.
+ */
+export async function isEmailAllowedForSite(email: string, site_id: string): Promise<boolean> {
+  const lower = email.toLowerCase().trim()
+  if (await isEmailAllowed(lower)) return true
+  const site = await getSite(site_id)
+  return (site?.allowed_emails ?? []).map(e => e.toLowerCase()).includes(lower)
 }
 
 export async function setSiteBlocked(site_id: string, blocked: boolean): Promise<SiteRecord | null> {

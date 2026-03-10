@@ -34,11 +34,11 @@ export async function GET(request: NextRequest) {
   const session = await getIronSession<SessionData>(await cookies(), sessionOptions)
   session.wpRedirectUri = redirect_uri
   session.wpState       = state
+  session.wpSiteId      = matchingSite.site_id
 
   // Already authenticated with Google? Issue the token immediately.
   if (session.googleUser) {
-    const response = await buildWordPressRedirect(session.googleUser, redirect_uri, state)
-    // Only save if we're not already returning an error response
+    const response = await buildWordPressRedirect(session.googleUser, redirect_uri, state, matchingSite.site_id)
     await session.save()
     return response
   }
