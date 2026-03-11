@@ -1,13 +1,21 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authenticatePlugin } from '@/lib/guards'
-import { isWhitelisted, isBlacklisted, isEmailAllowedForSite, getTrustedSignal, getSites } from '@/lib/storage'
+import {
+  isBlacklisted,
+  isEmailAllowedForSite,
+  getTrustedSignal,
+  getDevProfile,
+  getSites,
+} from '@/lib/storage'
+import { computeTrustScore } from '@/lib/scoring'
 import { loadPrivateKey } from '@/lib/keys'
+
+const TRUST_THRESHOLD = 70
 
 export async function POST(request: NextRequest) {
   const auth = await authenticatePlugin(request)
   if (!auth) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
 
-  // When a per-site project key is used we know which site is calling
   let site_id = 'site' in auth ? auth.site.site_id : null
 
   let body: {
@@ -15,6 +23,7 @@ export async function POST(request: NextRequest) {
     fingerprint_hash?: string
     cookie_user_email?: string | null
     site_domain?: string
+    referrer?: string
   }
   try { body = await request.json() } catch { body = {} }
 
@@ -28,22 +37,26 @@ export async function POST(request: NextRequest) {
     } catch { /* ignore bad domain */ }
   }
 
-  const { ip, fingerprint_hash, cookie_user_email } = body
+  const { ip, fingerprint_hash, cookie_user_email, referrer } = body
 
   if (!ip || !fingerprint_hash) {
     return NextResponse.json({ error: 'ip and fingerprint_hash are required.' }, { status: 400 })
   }
 
-  // Look up trusted signal from web app's own storage (single source of truth)
-  const signal = await getTrustedSignal(ip, fingerprint_hash)
-  const db_user_email = signal?.email ?? null
-
-  // Step 1: Hard block — IP on blacklist
+  // ── Step 1: Hard block ────────────────────────────────────────────────────
   if (await isBlacklisted(ip)) {
     return NextResponse.json({ decision: 'BLOCKED' })
   }
 
-  // Step 2: Conflict detection — same machine, different users → uncertain
+  // ── Step 2: Site must be identifiable for per-site access control ─────────
+  if (!site_id) {
+    return NextResponse.json({ decision: 'UNCERTAIN' })
+  }
+
+  // ── Step 3: Conflict detection — same device, different users ────────────
+  const signal = await getTrustedSignal(ip, fingerprint_hash)
+  const db_user_email = signal?.email ?? null
+
   if (
     db_user_email && cookie_user_email &&
     db_user_email.toLowerCase() !== cookie_user_email.toLowerCase()
@@ -51,39 +64,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 
-  // Step 3: No known user → uncertain
-  const user_email = db_user_email || cookie_user_email
+  const user_email = db_user_email || cookie_user_email || null
+
+  // ── Step 4: No known user → uncertain (no email to verify) ───────────────
   if (!user_email) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 
-  // Step 4: Site must be identified before we can check access.
-  // If site_id is still unknown (domain lookup also failed) we cannot enforce
-  // per-site restrictions, so refuse to issue a TRUSTED token — send the user
-  // through Layer 2 (Google SSO) which always resolves the site by domain.
-  if (!site_id) {
-    return NextResponse.json({ decision: 'UNCERTAIN' })
-  }
-
-  // Step 4b: Access check — email must be on this site's allowlist.
-  // Returns UNCERTAIN so the user can still attempt Layer 2.
+  // ── Step 5: Per-site email access check ──────────────────────────────────
   const emailOk = await isEmailAllowedForSite(user_email, site_id)
   if (!emailOk) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 
-  // Step 5: TRUSTED only if:
-  //   - IP is explicitly whitelisted, OR
-  //   - DB record AND session cookie both present and agree (same person, same device).
-  //   A DB-only match without the cookie is not enough — the fingerprint alone can't
-  //   distinguish different users on the same physical machine (same UA/screen/TZ).
-  const dbAndCookieAgree = !!db_user_email && !!cookie_user_email
-  const trusted = (await isWhitelisted(ip)) || dbAndCookieAgree
-  if (!trusted) {
+  // ── Step 6: Compute trust score ───────────────────────────────────────────
+  const profile = await getDevProfile()
+  const { score, reasons } = computeTrustScore({
+    ip,
+    fingerprint_hash,
+    cookie_user_email: cookie_user_email ?? null,
+    referrer,
+    signal,
+    profile,
+  })
+
+  console.log(`[assess] score=${score} reasons=${reasons.join(',')} ip=${ip}`)
+
+  if (score < TRUST_THRESHOLD) {
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 
-  // Issue RS256 login JWT
+  // ── Step 7: Issue RS256 login JWT ─────────────────────────────────────────
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const jwt    = require('jsonwebtoken')
@@ -102,7 +113,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ decision: 'TRUSTED', login_token })
   } catch (err) {
     console.error('Assess JWT signing error:', (err as Error).message)
-    // Fail open — show login form rather than blocking
     return NextResponse.json({ decision: 'UNCERTAIN' })
   }
 }

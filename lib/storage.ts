@@ -502,6 +502,78 @@ export async function deleteBugReport(id: string): Promise<boolean> {
   return true
 }
 
+// ── Developer Collective Profile ─────────────────────────────────────────────
+//
+// Stores aggregated data from every Layer-2-verified login (Google SSO or Auth
+// Code).  The assess route uses this to score new attempts against the shared
+// pattern of all confirmed developers — without ever using it as training data
+// from Layer-1 TRUSTED results (preventing poisoning).
+
+export interface DevProfile {
+  ips: string[]                                // IPs from all verified logins
+  fingerprint_sites: Record<string, string[]>  // fp_hash → [site_id, …]
+  active_hours: number[]                       // login count per UTC hour [0..23]
+  active_days: number[]                        // login count per day-of-week [0..6]
+}
+
+function emptyDevProfile(): DevProfile {
+  return {
+    ips: [],
+    fingerprint_sites: {},
+    active_hours: Array(24).fill(0) as number[],
+    active_days:  Array(7).fill(0)  as number[],
+  }
+}
+
+export async function getDevProfile(): Promise<DevProfile> {
+  const raw = USE_KV
+    ? await kvGet<DevProfile | null>('dev_profile', null)
+    : fsRead<DevProfile | null>('dev-profile.json', null)
+  return raw ?? emptyDevProfile()
+}
+
+async function saveDevProfile(profile: DevProfile): Promise<void> {
+  USE_KV ? await kvSet('dev_profile', profile) : fsWrite('dev-profile.json', profile)
+}
+
+/**
+ * Record a Layer-2-verified login into the collective developer profile.
+ * Must only be called after confirmed Google SSO or Auth Code verification —
+ * never from a Layer-1 TRUSTED path — so training data stays clean.
+ */
+export async function recordVerifiedLogin(
+  ip: string,
+  fp_hash: string,
+  site_id: string | null,
+): Promise<void> {
+  const profile = await getDevProfile()
+  const now = new Date()
+
+  // Track IP (cap at 500 unique IPs to avoid unbounded growth)
+  if (!profile.ips.includes(ip)) {
+    profile.ips = [ip, ...profile.ips].slice(0, 500)
+  }
+
+  // Track fingerprint → sites (which company WP sites this device has accessed)
+  if (fp_hash) {
+    if (!profile.fingerprint_sites[fp_hash]) profile.fingerprint_sites[fp_hash] = []
+    if (site_id && !profile.fingerprint_sites[fp_hash].includes(site_id)) {
+      profile.fingerprint_sites[fp_hash].push(site_id)
+    }
+    // Cap the total tracked fingerprints to prevent unbounded growth
+    const keys = Object.keys(profile.fingerprint_sites)
+    if (keys.length > 2000) {
+      for (const k of keys.slice(0, keys.length - 2000)) delete profile.fingerprint_sites[k]
+    }
+  }
+
+  // Track activity window
+  profile.active_hours[now.getUTCHours()]++
+  profile.active_days[now.getUTCDay()]++
+
+  await saveDevProfile(profile)
+}
+
 // ── Notification Email ───────────────────────────────────────────────────────
 
 export async function getNotificationEmail(): Promise<string> {
