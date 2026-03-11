@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authenticatePlugin } from '@/lib/guards'
-import { markAuthCodeUsed, getNotificationEmail } from '@/lib/storage'
+import { markAuthCodeUsed, getNotificationEmail, recordFailedAttempt, clearFailedAttempts } from '@/lib/storage'
 import { loadPrivateKey } from '@/lib/keys'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
@@ -11,10 +11,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
   }
 
-  let body: { otp_token?: string; code?: string }
+  let body: { otp_token?: string; code?: string; ip?: string }
   try { body = await request.json() } catch { body = {} }
 
-  const { otp_token, code } = body
+  const { otp_token, code, ip } = body
 
   if (!otp_token || !code) {
     return NextResponse.json({ error: 'otp_token and code are required.' }, { status: 400 })
@@ -57,11 +57,13 @@ export async function POST(request: NextRequest) {
   } catch { codeMatches = false }
 
   if (!codeMatches) {
+    if (ip) await recordFailedAttempt(ip, 'auth_code')
     return NextResponse.json({ error: 'Incorrect code.' }, { status: 403 })
   }
 
   // Mark the request as used
   await markAuthCodeUsed(otp_token)
+  if (ip) await clearFailedAttempts(ip)
 
   // Use the notification email as the authenticated identity
   const notificationEmail = await getNotificationEmail()

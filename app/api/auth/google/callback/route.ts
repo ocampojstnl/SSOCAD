@@ -59,11 +59,12 @@ export async function GET(request: NextRequest) {
       const wpRedirectUri = session.wpRedirectUri
       const wpState       = session.wpState
       const wpSiteId      = session.wpSiteId
+      const ip            = request.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? request.headers.get('x-real-ip') ?? undefined
       session.wpRedirectUri = undefined
       session.wpState       = undefined
       session.wpSiteId      = undefined
       await session.save()
-      return await buildWordPressRedirect(session.googleUser, wpRedirectUri, wpState, wpSiteId)
+      return await buildWordPressRedirect(session.googleUser, wpRedirectUri, wpState, wpSiteId, ip)
     }
 
     await session.save()

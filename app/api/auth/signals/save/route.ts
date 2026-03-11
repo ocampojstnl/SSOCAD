@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authenticatePlugin } from '@/lib/guards'
-import { saveTrustedSignal, recordVerifiedLogin } from '@/lib/storage'
+import { saveTrustedSignal, recordVerifiedLogin, clearFailedAttempts } from '@/lib/storage'
 
 export async function POST(request: NextRequest) {
   const auth = await authenticatePlugin(request)
@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
 
   // Save the individual trusted signal (used for exact fp+IP match in scoring)
   await saveTrustedSignal(ip, fingerprint_hash, email)
+  await clearFailedAttempts(ip)
 
   // Feed the collective developer profile (used for /24, multi-site, active-hours scoring)
   // This is always from a Layer-2-verified login — never from Layer 1 — keeping data clean.

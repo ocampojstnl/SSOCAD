@@ -6,6 +6,7 @@ import {
   getTrustedSignal,
   getDevProfile,
   getSites,
+  getActiveTempBan,
 } from '@/lib/storage'
 import { computeTrustScore } from '@/lib/scoring'
 import { loadPrivateKey } from '@/lib/keys'
@@ -43,9 +44,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ip and fingerprint_hash are required.' }, { status: 400 })
   }
 
-  // ── Step 1: Hard block ────────────────────────────────────────────────────
+  // ── Step 1: Hard block (permanent blacklist or active temp ban) ──────────
   if (await isBlacklisted(ip)) {
-    return NextResponse.json({ decision: 'BLOCKED' })
+    return NextResponse.json({ decision: 'BLOCKED', reason: 'IP is blacklisted.' })
+  }
+  const tempBan = await getActiveTempBan(ip)
+  if (tempBan) {
+    return NextResponse.json({ decision: 'BLOCKED', reason: tempBan.reason, expires_at: tempBan.expires_at })
   }
 
   // ── Step 2: Site must be identifiable for per-site access control ─────────

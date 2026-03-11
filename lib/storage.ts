@@ -502,6 +502,121 @@ export async function deleteBugReport(id: string): Promise<boolean> {
   return true
 }
 
+// ── Failed Attempts & Temporary Bans ─────────────────────────────────────────
+
+export type FailType = 'auth_code' | 'google_sso'
+
+interface FailedAttemptRecord {
+  ip: string
+  count: number
+  first_attempt: string
+  last_attempt: string
+  types: FailType[]
+}
+
+export interface TempBanRecord {
+  id: string
+  ip: string
+  reason: string
+  banned_at: string
+  expires_at: string
+  active: boolean
+  unbanned_at?: string
+}
+
+const FAIL_WINDOW_MS  = 30 * 60 * 1000        // 30-minute rolling window
+const MAX_FAILURES    = 5                       // failures before auto-ban
+const BAN_DURATION_MS = 12 * 60 * 60 * 1000   // 12-hour ban
+
+async function getFailedAttempts(): Promise<FailedAttemptRecord[]> {
+  return USE_KV ? kvGet('failed_attempts', []) : fsRead('failed-attempts.json', [])
+}
+async function saveFailedAttempts(records: FailedAttemptRecord[]): Promise<void> {
+  USE_KV ? await kvSet('failed_attempts', records) : fsWrite('failed-attempts.json', records)
+}
+
+export async function getTempBans(): Promise<TempBanRecord[]> {
+  return USE_KV ? kvGet('temp_bans', []) : fsRead('temp-bans.json', [])
+}
+async function saveTempBans(bans: TempBanRecord[]): Promise<void> {
+  USE_KV ? await kvSet('temp_bans', bans) : fsWrite('temp-bans.json', bans)
+}
+
+/** Returns the active temp ban for an IP, or null if not banned / expired. */
+export async function getActiveTempBan(ip: string): Promise<TempBanRecord | null> {
+  const bans = await getTempBans()
+  const now  = Date.now()
+  return bans.find(b => b.ip === ip && b.active && new Date(b.expires_at).getTime() > now) ?? null
+}
+
+/**
+ * Record a failed auth attempt. Automatically bans the IP for 12 hours after
+ * 5 failures within a 30-minute window.
+ */
+export async function recordFailedAttempt(ip: string, type: FailType): Promise<void> {
+  const attempts = await getFailedAttempts()
+  const now      = Date.now()
+  const nowIso   = new Date(now).toISOString()
+
+  const idx = attempts.findIndex(a => a.ip === ip)
+  if (idx >= 0) {
+    const r = attempts[idx]
+    if (now - new Date(r.last_attempt).getTime() > FAIL_WINDOW_MS) {
+      // Window expired — start a fresh count
+      attempts[idx] = { ip, count: 1, first_attempt: nowIso, last_attempt: nowIso, types: [type] }
+    } else {
+      r.count++
+      r.last_attempt = nowIso
+      if (!r.types.includes(type)) r.types.push(type)
+    }
+  } else {
+    attempts.push({ ip, count: 1, first_attempt: nowIso, last_attempt: nowIso, types: [type] })
+  }
+  await saveFailedAttempts(attempts)
+
+  // Auto-ban if threshold reached
+  const record = attempts.find(a => a.ip === ip)!
+  if (record.count >= MAX_FAILURES) {
+    const bans      = await getTempBans()
+    const expiresAt = new Date(now + BAN_DURATION_MS).toISOString()
+    const typeLabel = record.types.length > 1 ? 'multiple methods' : record.types[0].replace('_', ' ')
+    bans.push({
+      id:        `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      ip,
+      reason:    `${record.count} failed ${typeLabel} attempts within 30 minutes`,
+      banned_at: nowIso,
+      expires_at: expiresAt,
+      active:    true,
+    })
+    await saveTempBans(bans)
+    // Reset the counter so a new window starts after this ban
+    await saveFailedAttempts(attempts.filter(a => a.ip !== ip))
+  }
+}
+
+/** Clear failed attempt counter for an IP — call on any successful login. */
+export async function clearFailedAttempts(ip: string): Promise<void> {
+  const attempts = await getFailedAttempts()
+  const updated  = attempts.filter(a => a.ip !== ip)
+  if (updated.length !== attempts.length) await saveFailedAttempts(updated)
+}
+
+/** Unban an IP. Returns true if a ban was found and deactivated. */
+export async function unbanIP(ip: string): Promise<boolean> {
+  const bans    = await getTempBans()
+  const now     = new Date().toISOString()
+  let   changed = false
+  for (const ban of bans) {
+    if (ban.ip === ip && ban.active) {
+      ban.active      = false
+      ban.unbanned_at = now
+      changed         = true
+    }
+  }
+  if (changed) await saveTempBans(bans)
+  return changed
+}
+
 // ── Developer Collective Profile ─────────────────────────────────────────────
 //
 // Stores aggregated data from every Layer-2-verified login (Google SSO or Auth
