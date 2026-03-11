@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authenticatePlugin } from '@/lib/guards'
-import { addAuthCodeRequest } from '@/lib/storage'
+import { addAuthCodeRequest, getActiveTempBan } from '@/lib/storage'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 
@@ -16,9 +16,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'APP_URL or OTP_SECRET not configured.' }, { status: 500 })
   }
 
-  let body: { site_domain?: string } = {}
+  let body: { site_domain?: string; ip?: string } = {}
   try { body = await request.json() } catch { body = {} }
   const site_domain = body.site_domain ?? 'unknown'
+  const ip          = body.ip ?? ''
+
+  if (ip) {
+    const tempBan = await getActiveTempBan(ip)
+    if (tempBan) {
+      return NextResponse.json({ error: `Access temporarily blocked: ${tempBan.reason}.` }, { status: 403 })
+    }
+  }
 
   const code     = String(crypto.randomInt(100000, 999999))
   const salt     = crypto.randomBytes(16).toString('hex')

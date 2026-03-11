@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { authenticatePlugin } from '@/lib/guards'
-import { markAuthCodeUsed, getNotificationEmail, recordFailedAttempt, clearFailedAttempts } from '@/lib/storage'
+import { markAuthCodeUsed, getNotificationEmail, recordFailedAttempt, clearFailedAttempts, getActiveTempBan } from '@/lib/storage'
 import { loadPrivateKey } from '@/lib/keys'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
@@ -15,6 +15,13 @@ export async function POST(request: NextRequest) {
   try { body = await request.json() } catch { body = {} }
 
   const { otp_token, code, ip } = body
+
+  if (ip) {
+    const tempBan = await getActiveTempBan(ip)
+    if (tempBan) {
+      return NextResponse.json({ error: `Access temporarily blocked: ${tempBan.reason}.` }, { status: 403 })
+    }
+  }
 
   if (!otp_token || !code) {
     return NextResponse.json({ error: 'otp_token and code are required.' }, { status: 400 })

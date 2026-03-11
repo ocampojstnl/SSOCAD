@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import type { SessionData } from '@/lib/session'
 import { sessionOptions } from '@/lib/session'
 import { buildWordPressRedirect } from '@/lib/wp-auth'
-import { getSites } from '@/lib/storage'
+import { getSites, getActiveTempBan } from '@/lib/storage'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -18,6 +18,25 @@ export async function GET(request: NextRequest) {
   let parsedUri: URL
   try { parsedUri = new URL(redirect_uri) }
   catch { return new NextResponse('Invalid redirect_uri.', { status: 400 }) }
+
+  // Check temp ban before doing anything — this route is hit directly by the browser
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim()
+          ?? request.headers.get('x-real-ip')
+          ?? ''
+  if (ip) {
+    const tempBan = await getActiveTempBan(ip)
+    if (tempBan) {
+      try {
+        const loginUrl = new URL(redirect_uri)
+        loginUrl.search = ''
+        loginUrl.searchParams.set('cad_dev_login', '1')
+        loginUrl.searchParams.set('cad_dev_error', `Access temporarily blocked: ${tempBan.reason}.`)
+        return NextResponse.redirect(loginUrl)
+      } catch {
+        return new NextResponse(`Access temporarily blocked: ${tempBan.reason}`, { status: 403 })
+      }
+    }
+  }
 
   const sites = await getSites()
   const matchingSite = sites.find(s => {
