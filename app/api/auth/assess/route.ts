@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     const login_token = jwt.sign(
       { email: user_email, name: '', iss: appUrl, aud: 'wordpress-sso' },
       privateKey,
-      { algorithm: 'RS256', expiresIn: '5m', jwtid: crypto.randomBytes(16).toString('hex') },
+      { algorithm: 'RS256', expiresIn: '10m', jwtid: crypto.randomBytes(16).toString('hex') },
     )
 
     return NextResponse.json({ decision: 'TRUSTED', login_token })

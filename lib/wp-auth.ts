@@ -54,7 +54,7 @@ export async function buildWordPressRedirect(
     token = jwt.sign(
       { email: googleUser.email, name: googleUser.name, iss: appUrl, aud: 'wordpress-sso' },
       privateKey,
-      { algorithm: 'RS256', expiresIn: '5m', jwtid: crypto.randomBytes(16).toString('hex') },
+      { algorithm: 'RS256', expiresIn: '10m', jwtid: crypto.randomBytes(16).toString('hex') },
     )
   } catch (err) {
     const msg = (err as Error).message
