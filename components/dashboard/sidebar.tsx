@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Lock, Mail, Shield, Globe, Settings, LogOut, LayoutDashboard, Puzzle, Bell, Bug } from 'lucide-react'
+import { Lock, Mail, Shield, Globe, Settings, LogOut, LayoutDashboard, Puzzle, Bell, Bug, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useTransition, useEffect, useState } from 'react'
@@ -13,8 +13,9 @@ const nav = [
   { href: '/dashboard/ips',        label: 'IP Lists',      icon: Shield },
   { href: '/dashboard/sites',      label: 'Sites',         icon: Globe },
   { href: '/dashboard/plugin',     label: 'Plugin & Keys', icon: Puzzle },
-  { href: '/dashboard/bugs',       label: 'Bug Reports',   icon: Bug },
-  { href: '/dashboard/settings',   label: 'Settings',      icon: Settings },
+  { href: '/dashboard/bugs',        label: 'Bug Reports',   icon: Bug },
+  { href: '/dashboard/guide',       label: 'Setup Guide',   icon: BookOpen },
+  { href: '/dashboard/settings',    label: 'Settings',      icon: Settings },
 ]
 
 export function Sidebar() {
